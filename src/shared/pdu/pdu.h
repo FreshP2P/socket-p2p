@@ -56,6 +56,7 @@ struct PDUContentListingBody
 
 struct PDUAcknowledgement
 {
+  char peer_name[10];
 };
 
 struct PDUErrorBody
@@ -72,7 +73,7 @@ union PDUBody
   struct PDUContentDownloadRequestBody content_download_req;
 
   // T type body
-  struct PDUContentDeregistrationBody deregistration;
+  struct PDUContentDeregistrationBody content_deregistration;
 
   // C type body
   struct PDUContentDataBody content_data;
