@@ -4,6 +4,8 @@
 #include <netinet/in.h>
 
 #define STANDARD_BODY_SIZE 100
+#define PEER_NAME_SIZE 10
+#define CONTENT_NAME_SIZE 10
 #define DATA_BODY_SIZE 1024
 #define MAX_CONTENT_LISTING_LENGTH 5
 
@@ -21,8 +23,8 @@ enum PDUType
 
 typedef struct PeerContentInfo
 {
-  char peer_name[10];
-  char content_name[10];
+  char peer_name[PEER_NAME_SIZE];
+  char content_name[CONTENT_NAME_SIZE];
 } peer_content_info_t;
 
 struct PDUContentRegistrationBody
@@ -51,12 +53,12 @@ struct PDUContentListingBody
 {
   int total_pages;
   int page_num;
-  char registered_contents[MAX_CONTENT_LISTING_LENGTH][10];
+  char registered_contents[MAX_CONTENT_LISTING_LENGTH][CONTENT_NAME_SIZE];
 };
 
 struct PDUAcknowledgement
 {
-  char peer_name[10];
+  char peer_name[PEER_NAME_SIZE];
 };
 
 struct PDUErrorBody

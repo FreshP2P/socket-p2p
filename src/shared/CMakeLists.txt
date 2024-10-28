@@ -1,6 +1,6 @@
 project(socket-p2p-shared)
 
-add_library(${PROJECT_NAME} pdu/pdu.h)
+add_library(${PROJECT_NAME} pdu/pdu.h hash_table/hashtable.h)
 add_library(shared ALIAS ${PROJECT_NAME})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C)
 
