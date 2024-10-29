@@ -13,6 +13,11 @@ struct ContentList *content_list_create()
 
 struct ContentListNode *content_list_find(struct ContentList *list, const char *peer_name, const char *content_name)
 {
+  if (list == NULL)
+  {
+    return NULL;
+  }
+  
   struct ContentListNode *curr = list->start;
   while (curr != NULL)
   {
@@ -28,6 +33,11 @@ struct ContentListNode *content_list_find(struct ContentList *list, const char *
 
 void content_list_push(struct ContentList *list, const char *peer_name, const char *content_name)
 {
+  if (list == NULL)
+  {
+    return;
+  }
+  
   struct ContentListNode *new_node = malloc(sizeof(struct ContentListNode));
   strcpy(new_node->peer_name, peer_name);
   strcpy(new_node->content_name, content_name);
@@ -48,6 +58,11 @@ void content_list_push(struct ContentList *list, const char *peer_name, const ch
 
 void content_list_remove(struct ContentList *list, const char *peer_name, const char *content_name)
 {
+  if (list == NULL)
+  {
+    return;
+  }
+  
   struct ContentListNode *node_to_delete = content_list_find(list, peer_name, content_name);
   
   if (node_to_delete == NULL)

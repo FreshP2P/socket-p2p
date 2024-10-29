@@ -10,7 +10,7 @@ enum PDUType
   PDU_CONTENT_DOWNLOAD_REQUEST = 'D',
   PDU_CONTENT_AND_SERVER_SEARCH = 'S',
   PDU_CONTENT_DEREGISTRATION = 'T',
-  PDU_CONTENT_DATA = 'D',
+  PDU_CONTENT_DATA = 'C',
   PDU_ONLINE_CONTENT_LIST = 'O',
   PDU_ACKNOWLEDGEMENT = 'A',
   PDU_ERROR = 'E'
@@ -95,5 +95,7 @@ struct PDU
   // Some examples are shown below.
   union PDUBody body;
 };
+
+size_t calc_pdu_size(struct PDU pdu);
 
 #endif
