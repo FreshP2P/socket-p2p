@@ -18,7 +18,7 @@ unsigned int get_hash(const char *key)
   return hash % SIZE;
 }
 
-void *get(TABLE table, const char *key)
+void *table_get(TABLE table, const char *key)
 {
   unsigned int index = get_hash(key);
   struct DataItem *curr = table[index];
@@ -36,7 +36,7 @@ void *get(TABLE table, const char *key)
   return NULL;
 }
 
-void insert(TABLE table, char const *key, void const *value, size_t value_size)
+void table_insert(TABLE table, char const *key, void const *value, size_t key_len, size_t value_size)
 {
   unsigned int index = get_hash(key);
   struct DataItem *prev = NULL;
@@ -46,7 +46,8 @@ void insert(TABLE table, char const *key, void const *value, size_t value_size)
   {
     if (strcmp(curr->key, key) == 0)
     {
-      curr->value = value;
+      // curr->value = value;
+      memcpy(curr->value, value, value_size);
       return;
     }
 
@@ -54,14 +55,10 @@ void insert(TABLE table, char const *key, void const *value, size_t value_size)
     curr = curr->next;
   }
 
-  // Allocate space to store the new value
-  void *new_value = malloc(value_size);
-  memcpy(new_value, value, value_size);
-
   // Allocate the new data item in memory.
   struct DataItem *new_item = malloc(sizeof(struct DataItem));
-  new_item->key = key;
-  new_item->value = new_value;
+  memcpy(new_item->key, key, key_len);
+  memcpy(new_item->value, value, value_size);
   new_item->next = NULL;
 
   if (prev != NULL)
@@ -74,7 +71,7 @@ void insert(TABLE table, char const *key, void const *value, size_t value_size)
   }
 }
 
-struct DataItem *delete(TABLE table, char const *key)
+void table_delete(TABLE table, char const *key)
 {
   unsigned int index = get_hash(key);
   struct DataItem *prev = NULL;
@@ -100,6 +97,5 @@ struct DataItem *delete(TABLE table, char const *key)
 
     free(curr->value);
     free(curr);
-    return;
   }
 }

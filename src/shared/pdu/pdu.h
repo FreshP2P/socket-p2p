@@ -2,12 +2,7 @@
 #define _P2P_PDU
 
 #include <netinet/in.h>
-
-#define STANDARD_BODY_SIZE 100
-#define PEER_NAME_SIZE 10
-#define CONTENT_NAME_SIZE 10
-#define DATA_BODY_SIZE 1024
-#define MAX_CONTENT_LISTING_LENGTH 5
+#include "../config/constants.h"
 
 enum PDUType
 {
