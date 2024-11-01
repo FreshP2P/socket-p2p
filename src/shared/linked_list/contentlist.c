@@ -97,17 +97,14 @@ void content_list_remove(struct ContentList *list, const char *peer_name, const 
   free(node_to_delete);
 }
 
-struct ContentListNode *content_list_get_all(struct ContentList *list)
+void content_list_get_all(struct ContentList *list, struct ContentListNode **nodes)
 {
   int i = 0;
-  struct ContentListNode nodes[list->count];
 
   struct ContentListNode *curr = list->start;
   while (curr != NULL)
   {
-    nodes[i++] = *curr;
+    nodes[i++] = curr;
     curr = curr->next;
   }
-
-  return nodes;
 }

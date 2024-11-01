@@ -104,11 +104,10 @@ void table_delete(hash_table table, char const *key)
   }
 }
 
-void **table_values(hash_table table)
+void table_values(hash_table table, void **values)
 {
   int i = 0, values_i = 0;
   int count = table.count;
-  void *values[count];
   
   for (; i < TABLE_SIZE; i++)
   {

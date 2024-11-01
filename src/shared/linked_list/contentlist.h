@@ -26,6 +26,6 @@ void content_list_push(struct ContentList *list, const char *peer_name, const ch
 
 void content_list_remove(struct ContentList *list, const char *peer_name, const char *content_name);
 
-struct ContentListNode *content_list_get_all(struct ContentList *list);
+void content_list_get_all(struct ContentList *list, struct ContentListNode **nodes);
 
 #endif

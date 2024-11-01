@@ -81,22 +81,24 @@ int list_content(int s, struct sockaddr_in client_addr)
   int num_lists = content_table.count;
   
   sem_wait(&content_sem);
-  void **table_lists = table_values(content_table);
+  struct ContentList *table_lists[num_lists];
+  table_values(content_table, (void **)table_lists);
+  
   for (; i < content_table.count; i++)
   {
     int j = 0;
-    struct ContentList *curr_list = (struct ContentList *)table_lists[i];
-    struct ContentListNode *nodes = content_list_get_all(curr_list);
+    struct ContentList *curr_list = table_lists[i];
+    struct ContentListNode *nodes[curr_list->count];
+    content_list_get_all(curr_list, nodes);
 
     for (; j < curr_list->count; j++)
     {
       struct PDUContentListingBody listing_body = {
-        .end_of_list = (j == ((curr_list->count) - 1)),
-        .registered_content = {
-          .peer_name = nodes[j].peer_name,
-          .content_name = nodes[j].content_name
-        }
+        .end_of_list = (j == ((curr_list->count) - 1))
       };
+
+      strcpy(listing_body.registered_content.peer_name, nodes[j]->peer_name);
+      strcpy(listing_body.registered_content.content_name, nodes[j]->content_name);
 
       struct PDU listing_pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_listing = listing_body};
       sendto(s, &listing_pdu, calc_pdu_size(listing_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
