@@ -9,10 +9,9 @@ size_t calc_pdu_size(struct PDU pdu)
     body_size = sizeof(struct PDUContentRegistrationBody);
     break;
   case PDU_CONTENT_DOWNLOAD_REQUEST:
-    body_size = sizeof(struct PDUContentDownloadRequestBody);
-    break;
   case PDU_CONTENT_AND_SERVER_SEARCH:
     body_size = sizeof(struct PDUContentDownloadRequestBody);
+    break;
   case PDU_CONTENT_DEREGISTRATION:
     body_size = sizeof(struct PDUContentRegistrationBody);
     break;

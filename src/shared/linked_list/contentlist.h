@@ -11,8 +11,8 @@ struct ContentList
 
 struct ContentListNode
 {
-  char peer_name[PEER_NAME_SIZE];
-  char content_name[CONTENT_NAME_SIZE];
+  char peer_name[PEER_NAME_SIZE + 1];
+  char content_name[CONTENT_NAME_SIZE + 1];
   struct ContentListNode *prev;
   struct ContentListNode *next;
 };

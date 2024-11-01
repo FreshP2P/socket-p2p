@@ -18,8 +18,8 @@ enum PDUType
 
 typedef struct PeerContentInfo
 {
-  char peer_name[PEER_NAME_SIZE];
-  char content_name[CONTENT_NAME_SIZE];
+  char peer_name[PEER_NAME_SIZE + 1];
+  char content_name[CONTENT_NAME_SIZE + 1];
 } peer_content_info_t;
 
 struct PDUContentRegistrationBody
@@ -46,19 +46,18 @@ struct PDUContentDataBody
 
 struct PDUContentListingBody
 {
-  int total_pages;
-  int page_num;
-  char registered_contents[MAX_CONTENT_LISTING_LENGTH][CONTENT_NAME_SIZE];
+  int end_of_list; // 0: false, 1: true
+  peer_content_info_t registered_content;
 };
 
 struct PDUAcknowledgement
 {
-  char peer_name[PEER_NAME_SIZE];
+  char peer_name[PEER_NAME_SIZE + 1];
 };
 
 struct PDUErrorBody
 {
-  char message[STANDARD_BODY_SIZE];
+  char message[STANDARD_BODY_SIZE + 1];
 };
 
 union PDUBody
