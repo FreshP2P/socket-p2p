@@ -54,6 +54,8 @@ void content_list_push(struct ContentList *list, const char *peer_name, const ch
 
   new_node->prev = list->end;
   list->end = new_node;
+
+  list->count++;
 }
 
 void content_list_remove(struct ContentList *list, const char *peer_name, const char *content_name)
@@ -90,5 +92,22 @@ void content_list_remove(struct ContentList *list, const char *peer_name, const 
     list->end = node_to_delete->prev;
   }
 
+  list->count--;
+
   free(node_to_delete);
+}
+
+struct ContentListNode *content_list_get_all(struct ContentList *list)
+{
+  int i = 0;
+  struct ContentListNode nodes[list->count];
+
+  struct ContentListNode *curr = list->start;
+  while (curr != NULL)
+  {
+    nodes[i++] = *curr;
+    curr = curr->next;
+  }
+
+  return nodes;
 }

@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#define SIZE 32
+#define TABLE_SIZE 32
 
 struct DataItem {
   char *key;
@@ -20,16 +20,22 @@ struct DataItem {
   struct DataItem *next;
 };
 
-typedef struct DataItem **TABLE;
+typedef struct HashTable
+{
+  int count;
+  struct DataItem *items[TABLE_SIZE];
+} hash_table;
 
-extern TABLE create_table();
+extern hash_table create_table();
 
 extern unsigned int get_hash(const char *key);
 
-extern void *table_get(TABLE table, const char *key);
+extern void *table_get(hash_table table, const char *key);
 
-extern void table_insert(TABLE table, char const *key, void const *value, size_t key_len, size_t value_size);
+extern void table_insert(hash_table table, char const *key, void const *value, size_t key_len, size_t value_size);
 
-extern void table_delete(TABLE table, char const *key);
+extern void table_delete(hash_table table, char const *key);
+
+extern void **table_values(hash_table table);
 
 #endif

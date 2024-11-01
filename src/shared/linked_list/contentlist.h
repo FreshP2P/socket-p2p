@@ -5,6 +5,7 @@
 
 struct ContentList
 {
+  int count;
   struct ContentListNode *start;
   struct ContentListNode *end;
 };
@@ -24,5 +25,7 @@ struct ContentListNode *content_list_find(struct ContentList *list, const char *
 void content_list_push(struct ContentList *list, const char *peer_name, const char *content_name);
 
 void content_list_remove(struct ContentList *list, const char *peer_name, const char *content_name);
+
+struct ContentListNode *content_list_get_all(struct ContentList *list);
 
 #endif

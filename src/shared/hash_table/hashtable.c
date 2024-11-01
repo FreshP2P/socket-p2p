@@ -1,8 +1,8 @@
 #include "hashtable.h"
 
-TABLE create_table()
+hash_table create_table()
 {
-  return (TABLE)calloc(SIZE, sizeof(struct DataItem *));
+  return *((hash_table *)calloc(TABLE_SIZE, sizeof(hash_table)));
 }
 
 unsigned int get_hash(const char *key)
@@ -12,16 +12,16 @@ unsigned int get_hash(const char *key)
 
   while (c = *key++)
   {
-    hash = ((hash * 33) % SIZE + c) % SIZE;
+    hash = ((hash * 33) % TABLE_SIZE + c) % TABLE_SIZE;
   }
 
-  return hash % SIZE;
+  return hash % TABLE_SIZE;
 }
 
-void *table_get(TABLE table, const char *key)
+void *table_get(hash_table table, const char *key)
 {
   unsigned int index = get_hash(key);
-  struct DataItem *curr = table[index];
+  struct DataItem *curr = table.items[index];
 
   while (curr != NULL)
   {
@@ -36,11 +36,11 @@ void *table_get(TABLE table, const char *key)
   return NULL;
 }
 
-void table_insert(TABLE table, char const *key, void const *value, size_t key_len, size_t value_size)
+void table_insert(hash_table table, char const *key, void const *value, size_t key_len, size_t value_size)
 {
   unsigned int index = get_hash(key);
   struct DataItem *prev = NULL;
-  struct DataItem *curr = table[index];
+  struct DataItem *curr = table.items[index];
 
   while (curr != NULL)
   {
@@ -67,15 +67,17 @@ void table_insert(TABLE table, char const *key, void const *value, size_t key_le
   }
   else
   {
-    table[index] = new_item;
+    table.items[index] = new_item;
   }
+
+  table.count++;
 }
 
-void table_delete(TABLE table, char const *key)
+void table_delete(hash_table table, char const *key)
 {
   unsigned int index = get_hash(key);
   struct DataItem *prev = NULL;
-  struct DataItem *curr = table[index];
+  struct DataItem *curr = table.items[index];
 
   while (curr != NULL)
   {
@@ -92,10 +94,32 @@ void table_delete(TABLE table, char const *key)
     }
     else
     {
-      table[index] = NULL;
+      table.items[index] = NULL;
     }
+
+    table.count--;
 
     free(curr->value);
     free(curr);
   }
+}
+
+void **table_values(hash_table table)
+{
+  int i = 0, values_i = 0;
+  int count = table.count;
+  void *values[count];
+  
+  for (; i < TABLE_SIZE; i++)
+  {
+    struct DataItem *curr = table.items[i];
+    
+    while (curr != NULL)
+    {
+      values[values_i++] = curr->value;
+      curr = curr->next;
+    }
+  }
+
+  return values;
 }
