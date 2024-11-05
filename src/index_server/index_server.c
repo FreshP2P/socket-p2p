@@ -78,6 +78,10 @@ int deregister_content(int s, struct sockaddr_in client_addr, struct PDUContentD
   
   if (new_list_count == 0)
   {
+    sem_wait(&content_sem);
+    content_list_free(list);
+    sem_post(&content_sem);
+
     sem_wait(&addr_sem);
     table_delete(addr_table, peer_name);
     sem_post(&addr_sem);

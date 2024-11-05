@@ -4,7 +4,7 @@
 
 struct ContentList *content_list_create()
 {
-  struct ContentList *new_list = malloc(sizeof(struct ContentList));
+  struct ContentList *new_list = calloc(1, sizeof(struct ContentList));
   new_list->start = NULL;
   new_list->end = NULL;
 
@@ -107,4 +107,17 @@ void content_list_get_all(struct ContentList *list, struct ContentListNode **nod
     nodes[i++] = curr;
     curr = curr->next;
   }
+}
+
+void content_list_free(struct ContentList *list)
+{
+  struct ContentListNode *curr = list->start;
+  while (curr != NULL)
+  {
+    struct ContentListNode *next = curr->next;
+    free(curr);
+    curr = next;
+  }
+
+  free(list);
 }

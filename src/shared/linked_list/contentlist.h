@@ -28,4 +28,6 @@ void content_list_remove(struct ContentList *list, const char *peer_name, const 
 
 void content_list_get_all(struct ContentList *list, struct ContentListNode **nodes);
 
+void content_list_free(struct ContentList *list);
+
 #endif
