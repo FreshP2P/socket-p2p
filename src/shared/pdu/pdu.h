@@ -15,6 +15,7 @@ enum PDUType
   PDU_ACKNOWLEDGEMENT = 'A',
   PDU_ERROR = 'E'
 };
+typedef unsigned char pdu_type_t;
 
 typedef struct PeerContentInfo
 {
@@ -61,7 +62,7 @@ struct PDUAcknowledgement
 
 struct PDUErrorBody
 {
-  char message[STANDARD_BODY_SIZE + 1];
+  char message[STANDARD_BODY_SIZE - 1];
 };
 
 union PDUBody
@@ -90,7 +91,7 @@ union PDUBody
 
 struct PDU
 {
-  enum PDUType type;
+  pdu_type_t type;
 
   // TODO: As we develop the app, we will add the proper
   // contents per PDU type. Note that we should always check the type
