@@ -31,6 +31,10 @@ struct PDUContentRegistrationBody
 struct PDUContentDownloadRequestBody
 {
   peer_content_info_t info;
+  
+  // address as response from the index server
+  // clients can supply this as empty
+  struct sockaddr_in address;
 };
 
 struct PDUContentDeregistrationBody

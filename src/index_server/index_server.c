@@ -46,6 +46,13 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   content_list_push(list, peer_name, content_name);
   sem_post(&content_sem);
 
+  sem_wait(&addr_sem);
+  if (!table_get(addr_table, peer_name))
+  {
+    table_insert(addr_table, peer_name, &client_addr, sizeof(peer_name), sizeof(struct sockaddr_in));
+  }
+  sem_post(&addr_sem);
+
   struct PDUAcknowledgement ack_body;
   strcpy(ack_body.peer_name, peer_name);
 
@@ -58,6 +65,7 @@ int deregister_content(int s, struct sockaddr_in client_addr, struct PDUContentD
 {
   struct ContentList *list;
   char peer_name[PEER_NAME_SIZE + 1], content_name[CONTENT_NAME_SIZE + 1];
+  int new_list_count = 0;
 
   strcpy(peer_name, body.info.peer_name);
   strcpy(content_name, body.info.content_name);
@@ -65,13 +73,46 @@ int deregister_content(int s, struct sockaddr_in client_addr, struct PDUContentD
   sem_wait(&content_sem);
   list = (struct ContentList *)table_get(content_table, peer_name);
   content_list_remove(list, peer_name, content_name);
+  new_list_count = list->count;
   sem_post(&content_sem);
+  
+  if (new_list_count == 0)
+  {
+    sem_wait(&addr_sem);
+    table_delete(addr_table, peer_name);
+    sem_post(&addr_sem);
+  }
 
   struct PDUAcknowledgement ack_body;
   strcpy(ack_body.peer_name, peer_name);
 
   struct PDU ack_pdu = {.type = PDU_ACKNOWLEDGEMENT, .body.ack = ack_body};
   sendto(s, &ack_pdu, calc_pdu_size(ack_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
+  return 0;
+}
+
+int search_content(int s, struct sockaddr_in client_addr, struct PDUContentDownloadRequestBody body)
+{
+  struct ContentList *list = (struct ContentList *)table_get(content_table, body.info.peer_name);
+  if (content_list_find(list, body.info.peer_name, body.info.content_name) == NULL)
+  {
+    struct PDU err_pdu = {.type = PDU_ERROR, .body.error = {.message = "Name and content not found."}};
+    sendto(s, &err_pdu, calc_pdu_size(err_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
+    return 0;
+  }
+  
+  struct sockaddr_in *address = (struct sockaddr_in *)table_get(addr_table, body.info.peer_name);
+  if (address == NULL)
+  {
+    struct PDU err_pdu = {.type = PDU_ERROR, .body.error = {.message = "Address not found."}};
+    sendto(s, &err_pdu, calc_pdu_size(err_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
+    return 0;
+  }
+
+  body.address = *address;
+  struct PDU response_pdu = {.type = PDU_CONTENT_DOWNLOAD_REQUEST, .body.content_download_req = body};
+  
+  sendto(s, &response_pdu, calc_pdu_size(response_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
   return 0;
 }
 
@@ -118,7 +159,9 @@ int process_peer_req(int s, struct sockaddr_in client_addr, struct PDU pdu)
     return deregister_content(s, client_addr, pdu.body.content_deregistration);
   case PDU_ONLINE_CONTENT_LIST:
     return list_content(s, client_addr);
-    
+  case PDU_CONTENT_AND_SERVER_SEARCH:
+    return search_content(s, client_addr, pdu.body.content_download_req);
+
   default:
     fprintf(stdout, "No actions needed for PDU type %c.\n", pdu.type);
     break;
