@@ -151,6 +151,7 @@ int list_content(int s, struct sockaddr_in client_addr)
 
 int process_peer_req(int s, struct sockaddr_in client_addr, struct PDU pdu)
 {
+  fprintf(stdout, "Process %c PDU from %d...\n", pdu.type, client_addr.sin_addr.s_addr);
   switch (pdu.type)
   {
   case PDU_CONTENT_REGISTRATION:
