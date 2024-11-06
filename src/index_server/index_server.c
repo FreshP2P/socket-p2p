@@ -179,7 +179,7 @@ int main(int argc, char const *argv[])
   int alen;                      /* from-address length		*/
   struct sockaddr_in sin;        /* an Internet endpoint address         */
   int s, type;                   /* socket descriptor and socket type    */
-  int port = 3000;
+  int port = 8080;
 
   switch (argc)
   {
