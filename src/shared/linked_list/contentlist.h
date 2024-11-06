@@ -6,7 +6,11 @@
 struct ContentList
 {
   int count;
+  
+  // The most recently used node
   struct ContentListNode *start;
+  
+  // The least recently used node
   struct ContentListNode *end;
 };
 
@@ -22,9 +26,15 @@ struct ContentList *content_list_create();
 
 struct ContentListNode *content_list_find(struct ContentList *list, const char *peer_name, const char *content_name);
 
-void content_list_push(struct ContentList *list, const char *peer_name, const char *content_name);
+void content_list_push_start(struct ContentList *list, const char *peer_name, const char *content_name);
+
+void content_list_push_end(struct ContentList *list, const char *peer_name, const char *content_name);
 
 void content_list_remove(struct ContentList *list, const char *peer_name, const char *content_name);
+
+void content_list_remove_start(struct ContentList *list, char *removed_peer_name, char *removed_content_name);
+
+void content_list_remove_end(struct ContentList *list, char *removed_peer_name, char *removed_content_name);
 
 void content_list_get_all(struct ContentList *list, struct ContentListNode **nodes);
 

@@ -27,7 +27,7 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   strcpy(content_name, body.info.content_name);
 
   sem_wait(&content_sem);
-  list = (struct ContentList *)table_get(content_table, peer_name);
+  list = (struct ContentList *)table_get(content_table, content_name);
   sem_post(&content_sem);
   
   if (content_list_find(list, peer_name, content_name) != NULL)
@@ -41,9 +41,9 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   if (list == NULL)
   {
     list = content_list_create();
-    table_insert(content_table, peer_name, &list, sizeof(peer_name), sizeof(list));
+    table_insert(content_table, content_name, &list, sizeof(peer_name), sizeof(list));
   }
-  content_list_push(list, peer_name, content_name);
+  content_list_push_end(list, peer_name, content_name);
   sem_post(&content_sem);
 
   sem_wait(&addr_sem);
@@ -71,7 +71,7 @@ int deregister_content(int s, struct sockaddr_in client_addr, struct PDUContentD
   strcpy(content_name, body.info.content_name);
   
   sem_wait(&content_sem);
-  list = (struct ContentList *)table_get(content_table, peer_name);
+  list = (struct ContentList *)table_get(content_table, content_name);
   content_list_remove(list, peer_name, content_name);
   new_list_count = list->count;
   sem_post(&content_sem);
@@ -97,15 +97,22 @@ int deregister_content(int s, struct sockaddr_in client_addr, struct PDUContentD
 
 int search_content(int s, struct sockaddr_in client_addr, struct PDUContentDownloadRequestBody body)
 {
-  struct ContentList *list = (struct ContentList *)table_get(content_table, body.info.peer_name);
-  if (content_list_find(list, body.info.peer_name, body.info.content_name) == NULL)
+  char target_peer_name[PEER_NAME_SIZE + 1], target_content_name[CONTENT_NAME_SIZE + 1];
+  struct ContentList *list = (struct ContentList *)table_get(content_table, body.info.content_name);
+  if (list == NULL)
   {
-    struct PDU err_pdu = {.type = PDU_ERROR, .body.error = {.message = "Name and content not found."}};
+    struct PDU err_pdu = {.type = PDU_ERROR, .body.error = {.message = "Content not found."}};
     sendto(s, &err_pdu, calc_pdu_size(err_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
     return 0;
   }
+
+  // extract the least used peer
+  content_list_remove_end(list, target_peer_name, target_content_name);
   
-  struct sockaddr_in *address = (struct sockaddr_in *)table_get(addr_table, body.info.peer_name);
+  // mark it as recently used
+  content_list_push_start(list, target_peer_name, target_content_name);
+
+  struct sockaddr_in *address = (struct sockaddr_in *)table_get(addr_table, target_peer_name);
   if (address == NULL)
   {
     struct PDU err_pdu = {.type = PDU_ERROR, .body.error = {.message = "Address not found."}};
@@ -123,31 +130,22 @@ int search_content(int s, struct sockaddr_in client_addr, struct PDUContentDownl
 int list_content(int s, struct sockaddr_in client_addr)
 {
   int i = 0;
-  int num_lists = content_table.count;
+  int num_contents = content_table.count;
   
   sem_wait(&content_sem);
-  struct ContentList *table_lists[num_lists];
-  table_values(content_table, (void **)table_lists);
+  char *content_names[num_contents];
+  table_keys(content_table, content_names);
   
   for (; i < content_table.count; i++)
   {
-    int j = 0;
-    struct ContentList *curr_list = table_lists[i];
-    struct ContentListNode *nodes[curr_list->count];
-    content_list_get_all(curr_list, nodes);
+    struct PDUContentListingBody listing_body = {
+      .end_of_list = (i == (num_contents - 1))
+    };
 
-    for (; j < curr_list->count; j++)
-    {
-      struct PDUContentListingBody listing_body = {
-        .end_of_list = (j == ((curr_list->count) - 1))
-      };
+    strcpy(listing_body.content_name, content_names[i]);
 
-      strcpy(listing_body.registered_content.peer_name, nodes[j]->peer_name);
-      strcpy(listing_body.registered_content.content_name, nodes[j]->content_name);
-
-      struct PDU listing_pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_listing = listing_body};
-      sendto(s, &listing_pdu, calc_pdu_size(listing_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
-    }
+    struct PDU listing_pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_listing = listing_body};
+    sendto(s, &listing_pdu, calc_pdu_size(listing_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
   }
   sem_post(&content_sem);
   return 0;
@@ -182,7 +180,6 @@ int main(int argc, char const *argv[])
   struct sockaddr_in sin;        /* an Internet endpoint address         */
   int s, type;                   /* socket descriptor and socket type    */
   int port = 3000;
-  int new_sd;
 
   switch (argc)
   {

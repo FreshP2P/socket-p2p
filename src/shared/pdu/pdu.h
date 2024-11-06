@@ -52,7 +52,7 @@ struct PDUContentDataBody
 struct PDUContentListingBody
 {
   int end_of_list; // 0: false, 1: true
-  peer_content_info_t registered_content;
+  char content_name[CONTENT_NAME_SIZE + 1];
 };
 
 struct PDUAcknowledgement

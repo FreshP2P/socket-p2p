@@ -31,7 +31,33 @@ struct ContentListNode *content_list_find(struct ContentList *list, const char *
   return NULL;
 }
 
-void content_list_push(struct ContentList *list, const char *peer_name, const char *content_name)
+void content_list_push_start(struct ContentList *list, const char *peer_name, const char *content_name)
+{
+  if (list == NULL)
+  {
+    return;
+  }
+
+  struct ContentListNode *new_node = malloc(sizeof(struct ContentListNode));
+  strcpy(new_node->peer_name, peer_name);
+  strcpy(new_node->content_name, content_name);
+
+  if (list->start == NULL)
+  {
+    list->end = new_node;
+  }
+  else
+  {
+    list->start->prev = new_node;
+  }
+
+  new_node->next = list->start;
+  list->start = new_node;
+
+  list->count++;
+}
+
+void content_list_push_end(struct ContentList *list, const char *peer_name, const char *content_name)
 {
   if (list == NULL)
   {
@@ -45,7 +71,6 @@ void content_list_push(struct ContentList *list, const char *peer_name, const ch
   if (list->end == NULL)
   {
     list->start = new_node;
-    list->end = new_node;
   }
   else
   {
@@ -90,6 +115,47 @@ void content_list_remove(struct ContentList *list, const char *peer_name, const 
   if (node_to_delete == list->end)
   {
     list->end = node_to_delete->prev;
+  }
+
+  list->count--;
+
+  free(node_to_delete);
+}
+
+void content_list_remove_start(struct ContentList *list, char *removed_peer_name, char *removed_content_name)
+{
+  struct ContentListNode *node_to_delete = list->start;
+  list->start = node_to_delete->next;
+  
+  if (list->start != NULL)
+  {
+    list->start->prev = NULL;
+  }
+  else
+  {
+    list->end = NULL;
+  }
+
+  list->count--;
+
+  strcpy(removed_peer_name, node_to_delete->peer_name);
+  strcpy(removed_content_name, node_to_delete->content_name);
+
+  free(node_to_delete);
+}
+
+void content_list_remove_end(struct ContentList *list, char *removed_peer_name, char *removed_content_name)
+{
+  struct ContentListNode *node_to_delete = list->end;
+  list->end = node_to_delete->prev;
+
+  if (list->end != NULL)
+  {
+    list->end->next = NULL;
+  }
+  else
+  {
+    list->start = NULL;
   }
 
   list->count--;

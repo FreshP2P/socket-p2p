@@ -36,6 +36,8 @@ extern void table_insert(hash_table table, char const *key, void const *value, s
 
 extern void table_delete(hash_table table, char const *key);
 
+extern void table_keys(hash_table table, char **keys);
+
 extern void table_values(hash_table table, void **values);
 
 #endif

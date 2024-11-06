@@ -104,10 +104,25 @@ void table_delete(hash_table table, char const *key)
   }
 }
 
+void table_keys(hash_table table, char **keys)
+{
+  int i = 0, keys_i = 0;
+
+  for (; i < TABLE_SIZE; i++)
+  {
+    struct DataItem *curr = table.items[i];
+
+    while (curr != NULL)
+    {
+      keys[keys_i++] = curr->key;
+      curr = curr->next;
+    }
+  }
+}
+
 void table_values(hash_table table, void **values)
 {
   int i = 0, values_i = 0;
-  int count = table.count;
   
   for (; i < TABLE_SIZE; i++)
   {
@@ -119,6 +134,4 @@ void table_values(hash_table table, void **values)
       curr = curr->next;
     }
   }
-
-  return values;
 }
