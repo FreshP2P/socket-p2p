@@ -70,6 +70,19 @@ int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
     
     struct PDU pdu = {.type = PDU_CONTENT_DEREGISTRATION, .body.content_deregistration = body};
     sendto(udp_fd, &pdu, calc_pdu_size(pdu), 0, (struct sockaddr *)&index_server_addr, sizeof(index_server_addr));
+
+    struct PDU response_pdu;
+    recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, (struct sockaddr *)&index_server_addr, sizeof(index_server_addr));
+    
+    switch(response_pdu.type)
+    {
+    case PDU_ACKNOWLEDGEMENT:
+      fprintf(stdout, "%s deregistered.\n", nodes[i]->content_name);
+      break;
+    case PDU_ERROR:
+      fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
+      break;
+    }
   }
 
   return 0;
