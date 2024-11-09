@@ -15,7 +15,7 @@
 #include <linked_list/contentlist.h>
 #include <config/constants.h>
 
-#define INPUT_MAX_LENGTH 24
+#define INPUT_MAX_LENGTH 10
 
 typedef enum PromptMode
 {
@@ -41,8 +41,20 @@ typedef enum UserAction
   QUIT = 'Q'
 } user_action;
 
+typedef int (*udp_child_proc_func)(int udp_fd, struct sockaddr_in index_server_addr, char *arg);
+
 prompt_mode input_mode = PROMPT_ACTION;
 struct ContentList *contents;
+
+void create_child_process(int udp_fd, struct sockaddr_in index_server_addr, udp_child_proc_func proc_func, char *arg)
+{
+  switch (fork())
+  {
+  case 0:
+    exit(proc_func(udp_fd, index_server_addr, arg));
+    break;
+  }
+}
 
 void wait_for_children()
 {
@@ -54,6 +66,13 @@ void wait_for_children()
   {
     fprintf(stdout, "Process %d terminated with code %d\n", terminated_proc, status);
   }
+}
+
+int list_online_content(int udp_fd, struct sockaddr_in index_server_addr, char *arg)
+{
+  // TODO: Send and receive packets for online content list
+
+  return 0;
 }
 
 int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
@@ -72,7 +91,7 @@ int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
     sendto(udp_fd, &pdu, calc_pdu_size(pdu), 0, (struct sockaddr *)&index_server_addr, sizeof(index_server_addr));
 
     struct PDU response_pdu;
-    recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, (struct sockaddr *)&index_server_addr, sizeof(index_server_addr));
+    recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
     
     switch(response_pdu.type)
     {
@@ -108,7 +127,8 @@ void process_action(int udp_fd, struct sockaddr_in index_server_addr, user_actio
   switch (action)
   {
   case LIST_CONTENT:
-    // TODO: Send and receive packets for online content list
+    fprintf(stdout, "Listing available content...\n");
+    create_child_process(udp_fd, index_server_addr, list_online_content, NULL);
     input_mode = PROMPT_ACTION;
     break;
   case REGISTER:
@@ -147,16 +167,19 @@ void process_user_input(int udp_fd, struct sockaddr_in index_server_addr, char *
 
   case PROMPT_REGISTRATION:
     // TODO: Register content
+    fprintf(stdout, "Registering %s...\n", arg);
     input_mode = PROMPT_ACTION;
     break;
 
   case PROMPT_DEREGISTRATION:
     // TODO: Deregister content
+    fprintf(stdout, "Deregistering %s...\n", arg);
     input_mode = PROMPT_ACTION;
     break;
     
   case PROMPT_DOWNLOAD:
     // TODO: Download content with TCP connection
+    fprintf(stdout, "Downloading %s...\n", arg);
     input_mode = PROMPT_ACTION;
     break;
   }
