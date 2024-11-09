@@ -15,8 +15,10 @@
 #include <linked_list/contentlist.h>
 #include <config/constants.h>
 
+#define PEER_NAME_MAX_LENGTH 10
 #define INPUT_MAX_LENGTH 10
 
+// Enum representing what we are prompting. This is used to track follow up prompts
 typedef enum PromptMode
 {
   // Prompting for an action the user wants to perform
@@ -32,6 +34,7 @@ typedef enum PromptMode
   PROMPT_DOWNLOAD
 } prompt_mode;
 
+// List of actions the user can perform.
 typedef enum UserAction
 {
   LIST_CONTENT = 'L',
@@ -41,11 +44,21 @@ typedef enum UserAction
   QUIT = 'Q'
 } user_action;
 
+// A function representing a process involving interactions with the index server.
 typedef int (*udp_child_proc_func)(int udp_fd, struct sockaddr_in index_server_addr, char *arg);
 
+// Peer name
+char peer_name[PEER_NAME_MAX_LENGTH + 1];
+
+// Current prompt
 prompt_mode input_mode = PROMPT_ACTION;
+
+// Registered contents
 struct ContentList *contents;
 
+/**
+ * Creates a child process that calls the specified function.
+ */
 void create_child_process(int udp_fd, struct sockaddr_in index_server_addr, udp_child_proc_func proc_func, char *arg)
 {
   switch (fork())
@@ -56,6 +69,9 @@ void create_child_process(int udp_fd, struct sockaddr_in index_server_addr, udp_
   }
 }
 
+/**
+ * Waits for all child processes to finish.
+ */
 void wait_for_children()
 {
   int terminated_proc;
@@ -68,6 +84,9 @@ void wait_for_children()
   }
 }
 
+/**
+ * Displays all available online content in the output.
+ */
 int list_online_content(int udp_fd, struct sockaddr_in index_server_addr, char *arg)
 {
   // TODO: Send and receive packets for online content list
@@ -75,6 +94,9 @@ int list_online_content(int udp_fd, struct sockaddr_in index_server_addr, char *
   return 0;
 }
 
+/**
+ * Terminates all content.
+ */
 int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
 {
   struct ContentListNode *nodes[contents->count];
@@ -107,6 +129,9 @@ int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
   return 0;
 }
 
+/**
+ * Initiates the quit sequence, which deregisters all content and exits.
+ */
 void quit(int udp_fd, struct sockaddr_in index_server_addr)
 {
   switch (fork())
@@ -122,6 +147,9 @@ void quit(int udp_fd, struct sockaddr_in index_server_addr)
   }
 }
 
+/**
+ * Process the user's selected action, based on what we are currently prompting.
+ */
 void process_action(int udp_fd, struct sockaddr_in index_server_addr, user_action action)
 {
   switch (action)
@@ -195,6 +223,16 @@ void print_prompt()
   fprintf(stdout, "Q: Quit\n");
 }
 
+void prompt_peer_name()
+{
+  memset(peer_name, 0, PEER_NAME_MAX_LENGTH + 1);
+  puts("What is the peer name? (10 characters only)");
+  
+  int name_len = read(STDIN_FILENO, peer_name, PEER_NAME_MAX_LENGTH + 1);
+  peer_name[name_len - 1] = 0;
+  fprintf(stdout, "Peer name: %s\n", peer_name);
+}
+
 int main(int argc, char const *argv[])
 {
   /* code */
@@ -265,6 +303,8 @@ int main(int argc, char const *argv[])
   }
 
   contents = content_list_create();
+  prompt_peer_name();
+
   print_prompt();
 
   while (1)
