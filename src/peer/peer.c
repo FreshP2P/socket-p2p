@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/select.h>
 #include <sys/unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -9,15 +10,153 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <pdu/pdu.h>
+#include <linked_list/contentlist.h>
 #include <config/constants.h>
-#include <sys/select.h>
+
+#define INPUT_MAX_LENGTH 24
+
+typedef enum PromptMode
+{
+  // Prompting for an action the user wants to perform
+  PROMPT_ACTION,
+  
+  // Prompting for the content to register
+  PROMPT_REGISTRATION,
+  
+  // Prompting for the content to deregister
+  PROMPT_DEREGISTRATION,
+  
+  // Prompting for the content to download
+  PROMPT_DOWNLOAD
+} prompt_mode;
+
+typedef enum UserAction
+{
+  LIST_CONTENT = 'L',
+  REGISTER = 'R',
+  DEREGISTER = 'T',
+  DOWNLOAD = 'D',
+  QUIT = 'Q'
+} user_action;
+
+prompt_mode input_mode = PROMPT_ACTION;
+struct ContentList *contents;
+
+void wait_for_children()
+{
+  int terminated_proc;
+  int status;
+
+  fprintf(stdout, "Waiting for all child processes to finish...\n");
+  while ((terminated_proc = waitpid(-1, &status, 0)) > 0)
+  {
+    fprintf(stdout, "Process %d terminated with code %d\n", terminated_proc, status);
+  }
+}
+
+int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
+{
+  struct ContentListNode *nodes[contents->count];
+  content_list_get_all(contents, nodes);
+
+  int i = 0;
+  for (i = 0; i < contents->count; i++)
+  {
+    struct PDUContentDeregistrationBody body;
+    strcpy(body.info.content_name, nodes[i]->content_name);
+    strcpy(body.info.peer_name, nodes[i]->peer_name);
+    
+    struct PDU pdu = {.type = PDU_CONTENT_DEREGISTRATION, .body.content_deregistration = body};
+    sendto(udp_fd, &pdu, calc_pdu_size(pdu), 0, (struct sockaddr *)&index_server_addr, sizeof(index_server_addr));
+  }
+
+  return 0;
+}
+
+void quit(int udp_fd, struct sockaddr_in index_server_addr)
+{
+  switch (fork())
+  {
+  case 0:
+    exit(terminate_all_content(udp_fd, index_server_addr));
+    break;
+
+  default:
+    wait_for_children();
+    exit(0);
+    break;
+  }
+}
+
+void process_action(int udp_fd, struct sockaddr_in index_server_addr, user_action action)
+{
+  switch (action)
+  {
+  case LIST_CONTENT:
+    // TODO: Send and receive packets for online content list
+    input_mode = PROMPT_ACTION;
+    break;
+  case REGISTER:
+    input_mode = PROMPT_REGISTRATION;
+    fprintf(stdout, "What file would you like to register?\n");
+    break;
+  case DEREGISTER:
+    input_mode = PROMPT_DEREGISTRATION;
+    fprintf(stdout, "What file would you like to deregister?\n");
+    break;
+  case DOWNLOAD:
+    input_mode = PROMPT_DOWNLOAD;
+    fprintf(stdout, "What file would you like to download?\n");
+    break;
+  case QUIT:
+    fprintf(stdout, "Quitting...\n");
+    quit(udp_fd, index_server_addr);
+    break;
+  default:
+    fprintf(stdout, "%c is not a valid choice.\n", action);
+    break;
+  }
+}
+
+/**
+ * Handles all actions as commanded by the user.
+ * Only UDP connections with the index server should be utilized here.
+ */
+void process_user_input(int udp_fd, struct sockaddr_in index_server_addr, char *arg)
+{
+  switch (input_mode)
+  {
+  case PROMPT_ACTION:
+    process_action(udp_fd, index_server_addr, (user_action)toupper(arg[0]));
+    break;
+
+  case PROMPT_REGISTRATION:
+    // TODO: Register content
+    input_mode = PROMPT_ACTION;
+    break;
+
+  case PROMPT_DEREGISTRATION:
+    // TODO: Deregister content
+    input_mode = PROMPT_ACTION;
+    break;
+    
+  case PROMPT_DOWNLOAD:
+    // TODO: Download content with TCP connection
+    input_mode = PROMPT_ACTION;
+    break;
+  }
+}
 
 void print_prompt()
 {
   fprintf(stdout, "Commands:\n");
-  fprintf(stdout, "register <content_name>: Register content\n");
-  fprintf(stdout, "download <content_name>: Download content\n");
+  fprintf(stdout, "L: List available content\n");
+  fprintf(stdout, "R: Register content\n");
+  fprintf(stdout, "T: Deregister content\n");
+  fprintf(stdout, "D: Download content\n");
+  fprintf(stdout, "Q: Quit\n");
 }
 
 int main(int argc, char const *argv[])
@@ -89,6 +228,7 @@ int main(int argc, char const *argv[])
     fprintf(stderr, "Can't connect to %s:%d!\n", index_host, index_port);
   }
 
+  contents = content_list_create();
   print_prompt();
 
   while (1)
@@ -97,7 +237,10 @@ int main(int argc, char const *argv[])
 
     if (FD_ISSET(STDIN_FILENO, &rfds))
     {
+      char read_in[INPUT_MAX_LENGTH + 1];
+      int read_len = read(STDIN_FILENO, read_in, INPUT_MAX_LENGTH);
 
+      process_user_input(index_udp_socket_fd, index_addr, read_in);
     }
 
     if (FD_ISSET(tcp_socket_fd, &rfds))
