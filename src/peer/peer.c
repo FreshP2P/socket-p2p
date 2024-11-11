@@ -14,6 +14,7 @@
 #include <pdu/pdu.h>
 #include <linked_list/contentlist.h>
 #include <config/constants.h>
+#include <unistd.h> 
 
 #define PEER_NAME_MAX_LENGTH 10
 #define INPUT_MAX_LENGTH 10
