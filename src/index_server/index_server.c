@@ -12,6 +12,7 @@
 #include <config/constants.h>
 #include <hash_table/hashtable.h>
 #include <linked_list/contentlist.h>
+#include <unistd.h> 
 
 hash_table addr_table;
 sem_t addr_sem;
