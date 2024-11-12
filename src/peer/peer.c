@@ -315,6 +315,7 @@ int main(int argc, char const *argv[])
     {
       char read_in[INPUT_MAX_LENGTH + 1];
       int read_len = read(STDIN_FILENO, read_in, INPUT_MAX_LENGTH);
+      read_in[read_len - 1] = 0;
 
       process_user_input(index_udp_socket_fd, index_addr, read_in);
     }
