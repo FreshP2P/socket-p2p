@@ -1,6 +1,7 @@
 #include "contentlist.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 struct ContentList *content_list_create()
 {
@@ -21,7 +22,8 @@ struct ContentListNode *content_list_find(struct ContentList *list, const char *
   struct ContentListNode *curr = list->start;
   while (curr != NULL)
   {
-    if (strcmp(curr->peer_name, peer_name) && strcmp(curr->content_name, content_name) == 0)
+    fprintf(stdout, "%s\n", curr->content_name);
+    if (strcmp(curr->peer_name, peer_name) == 0 && strcmp(curr->content_name, content_name) == 0)
     {
       return curr;
     }

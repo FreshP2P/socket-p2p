@@ -26,18 +26,18 @@ typedef struct HashTable
   struct DataItem *items[TABLE_SIZE];
 } hash_table;
 
-extern hash_table create_table();
+extern hash_table* create_table();
 
 extern unsigned int get_hash(const char *key);
 
-extern void *table_get(hash_table table, const char *key);
+extern void *table_get(hash_table* table, const char *key);
 
-extern void table_insert(hash_table table, char const *key, void const *value, size_t key_len, size_t value_size);
+extern void table_insert(hash_table* table, char const *key, void const *value, size_t key_len, size_t value_size);
 
-extern void table_delete(hash_table table, char const *key);
+extern void table_delete(hash_table* table, char const *key);
 
-extern void table_keys(hash_table table, char **keys);
+extern void table_keys(hash_table* table, char **keys);
 
-extern void table_values(hash_table table, void **values);
+extern void table_values(hash_table* table, void **values);
 
 #endif
