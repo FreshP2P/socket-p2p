@@ -14,9 +14,9 @@
 #include <linked_list/contentlist.h>
 #include <unistd.h> 
 
-hash_table addr_table;
+hash_table* addr_table;
 sem_t addr_sem;
-hash_table content_table;
+hash_table* content_table;
 sem_t content_sem;
 
 int register_content(int s, struct sockaddr_in client_addr, struct PDUContentRegistrationBody body)
@@ -31,10 +31,9 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   sem_wait(&content_sem);
   list = (struct ContentList *)table_get(content_table, content_name);
   sem_post(&content_sem);
-  
+
   if (content_list_find(list, peer_name, content_name) != NULL)
   {
-    fprintf(stdout, "already registered\n");
     struct PDU err_pdu = {.type = PDU_ERROR, .body.error = {.message = "Name and content already taken."}};
     sendto(s, &err_pdu, calc_pdu_size(err_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
     return 0;
@@ -43,18 +42,16 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   sem_wait(&content_sem);
   if (list == NULL)
   {
-    fprintf(stdout, "table create\n");
     list = content_list_create();
     table_insert(content_table, content_name, &list, sizeof(peer_name), sizeof(list));
   }
+
   content_list_push_end(list, peer_name, content_name);
   sem_post(&content_sem);
-
   sem_wait(&addr_sem);
-  fprintf(stdout, "before get\n");
+
   if (!table_get(addr_table, peer_name))
   {
-    fprintf(stdout, "table get\n");
     table_insert(addr_table, peer_name, &client_addr, sizeof(peer_name), sizeof(struct sockaddr_in));
   }
   sem_post(&addr_sem);
@@ -62,8 +59,8 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   struct PDUAcknowledgement ack_body;
   strcpy(ack_body.peer_name, peer_name);
 
+
   struct PDU ack_pdu = {.type = PDU_ACKNOWLEDGEMENT, .body.ack = ack_body};
-  fprintf(stdout, "made it here\n");
   sendto(s, &ack_pdu, calc_pdu_size(ack_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
   return 0;
 }
@@ -137,13 +134,14 @@ int search_content(int s, struct sockaddr_in client_addr, struct PDUContentDownl
 int list_content(int s, struct sockaddr_in client_addr)
 {
   int i = 0;
-  int num_contents = content_table.count;
+  int num_contents = content_table->count;
   
   sem_wait(&content_sem);
   char *content_names[num_contents];
   table_keys(content_table, content_names);
-  
-  for (; i < content_table.count; i++)
+
+  fprintf(stdout, "List: %d\n", content_table->count);  
+  for (; i < content_table->count; i++)
   {
     struct PDUContentListingBody listing_body = {
       .end_of_list = (i == (num_contents - 1))
@@ -152,6 +150,7 @@ int list_content(int s, struct sockaddr_in client_addr)
     strcpy(listing_body.content_name, content_names[i]);
 
     struct PDU listing_pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_listing = listing_body};
+    fprintf(stdout, "Sending list\n"); 
     sendto(s, &listing_pdu, calc_pdu_size(listing_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
   }
   sem_post(&content_sem);

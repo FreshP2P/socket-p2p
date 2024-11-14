@@ -92,7 +92,7 @@ void peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, cha
   strcpy(body.info.content_name, "test.txt");
   strcpy(body.info.peer_name,  "test");
   struct PDU pdu = {.type = PDU_CONTENT_REGISTRATION, .body.content_registration = body};
-  int bytes = write(udp_fd, &pdu, calc_pdu_size(pdu)); 
+  write(udp_fd, &pdu, calc_pdu_size(pdu)); 
   struct PDU response_pdu;
   recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
   switch(response_pdu.type)
@@ -114,13 +114,18 @@ int list_online_content(int udp_fd, struct sockaddr_in index_server_addr, char *
   // TODO: Send and receive packets for online content list
 
   struct PDU pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_data = NULL};
-  sendto(udp_fd, &pdu, calc_pdu_size(pdu), 0, (struct sockaddr *)&index_server_addr, sizeof(index_server_addr));
+  write(udp_fd, &pdu, calc_pdu_size(pdu));
   struct PDU response_pdu;
   recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
-
-  struct ContentListNode *nodes[contents->count];
-  content_list_get_all(contents, nodes);
-  
+  switch(response_pdu.type)
+  {
+    case PDU_ONLINE_CONTENT_LIST:
+      response_pdu.body.content_listing;
+      break;
+    case PDU_ERROR:
+      fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
+      break;
+  }
   return 0;
 }
 
