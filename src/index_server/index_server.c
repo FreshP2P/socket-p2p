@@ -13,6 +13,7 @@
 #include <hash_table/hashtable.h>
 #include <linked_list/contentlist.h>
 #include <unistd.h> 
+#include <pthread.h>
 
 hash_table* addr_table;
 sem_t addr_sem;
@@ -135,12 +136,12 @@ int list_content(int s, struct sockaddr_in client_addr)
 {
   int i = 0;
   int num_contents = content_table->count;
+  fprintf(stdout, "List: %d\n", content_table->count);
   
   sem_wait(&content_sem);
   char *content_names[num_contents];
   table_keys(content_table, content_names);
-
-  fprintf(stdout, "List: %d\n", content_table->count);  
+  
   for (; i < content_table->count; i++)
   {
     struct PDUContentListingBody listing_body = {
@@ -241,16 +242,8 @@ int main(int argc, char const *argv[])
       fprintf(stdout, "Error encountered while receiving!\n");
       continue;
     }
-    // process the request in a separate process
-    switch (fork())
-    {
-      case 0:
-        process_peer_req(s, client_sin, received_pdu);
-        break;
-      default:
-        continue;
-    }
-
+    
+    process_peer_req(s, client_sin, received_pdu);
   }
 
   return 0;
