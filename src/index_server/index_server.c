@@ -21,6 +21,7 @@ sem_t content_sem;
 
 int register_content(int s, struct sockaddr_in client_addr, struct PDUContentRegistrationBody body)
 {
+
   struct ContentList *list;
   char peer_name[PEER_NAME_SIZE + 1], content_name[CONTENT_NAME_SIZE + 1];
 
@@ -33,6 +34,7 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   
   if (content_list_find(list, peer_name, content_name) != NULL)
   {
+    fprintf(stdout, "already registered\n");
     struct PDU err_pdu = {.type = PDU_ERROR, .body.error = {.message = "Name and content already taken."}};
     sendto(s, &err_pdu, calc_pdu_size(err_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
     return 0;
@@ -41,6 +43,7 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   sem_wait(&content_sem);
   if (list == NULL)
   {
+    fprintf(stdout, "table create\n");
     list = content_list_create();
     table_insert(content_table, content_name, &list, sizeof(peer_name), sizeof(list));
   }
@@ -48,8 +51,10 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   sem_post(&content_sem);
 
   sem_wait(&addr_sem);
+  fprintf(stdout, "before get\n");
   if (!table_get(addr_table, peer_name))
   {
+    fprintf(stdout, "table get\n");
     table_insert(addr_table, peer_name, &client_addr, sizeof(peer_name), sizeof(struct sockaddr_in));
   }
   sem_post(&addr_sem);
@@ -58,6 +63,7 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   strcpy(ack_body.peer_name, peer_name);
 
   struct PDU ack_pdu = {.type = PDU_ACKNOWLEDGEMENT, .body.ack = ack_body};
+  fprintf(stdout, "made it here\n");
   sendto(s, &ack_pdu, calc_pdu_size(ack_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
   return 0;
 }
@@ -154,7 +160,7 @@ int list_content(int s, struct sockaddr_in client_addr)
 
 int process_peer_req(int s, struct sockaddr_in client_addr, struct PDU pdu)
 {
-  fprintf(stdout, "Process %c PDU from %d...\n", pdu.type, client_addr.sin_addr.s_addr);
+  //fprintf(stdout, "Process %c PDU from %d...\n", pdu.type, client_addr.sin_addr.s_addr);
   switch (pdu.type)
   {
   case PDU_CONTENT_REGISTRATION:
@@ -167,7 +173,7 @@ int process_peer_req(int s, struct sockaddr_in client_addr, struct PDU pdu)
     return search_content(s, client_addr, pdu.body.content_download_req);
 
   default:
-    fprintf(stdout, "No actions needed for PDU type %c.\n", pdu.type);
+    //fprintf(stdout, "No actions needed for PDU type %c.\n", pdu.type);
     break;
   }
   return 0;
@@ -229,22 +235,23 @@ int main(int argc, char const *argv[])
   while (1)
   {
     struct PDU received_pdu;
+
     if (recvfrom(s, &received_pdu, sizeof(received_pdu), 0,
                  (struct sockaddr *)&client_sin, &alen) < 0)
     {
-      fprintf(stderr, "Error encountered while receiving!\n");
+      fprintf(stdout, "Error encountered while receiving!\n");
       continue;
     }
-    
     // process the request in a separate process
     switch (fork())
     {
-    case 0:
-      exit(process_peer_req(s, client_sin, received_pdu));
-      break;
-    default:
-      continue;
+      case 0:
+        process_peer_req(s, client_sin, received_pdu);
+        break;
+      default:
+        continue;
     }
+
   }
 
   return 0;

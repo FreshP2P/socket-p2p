@@ -15,6 +15,7 @@
 #include <linked_list/contentlist.h>
 #include <config/constants.h>
 #include <unistd.h> 
+#include <errno.h>
 
 #define PEER_NAME_MAX_LENGTH 10
 #define INPUT_MAX_LENGTH 10
@@ -68,6 +69,7 @@ void create_child_process(int udp_fd, struct sockaddr_in index_server_addr, udp_
     exit(proc_func(udp_fd, index_server_addr, arg));
     break;
   }
+
 }
 
 /**
@@ -85,6 +87,25 @@ void wait_for_children()
   }
 }
 
+void peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, char *arg){
+  struct PDUContentRegistrationBody body;
+  strcpy(body.info.content_name, "test.txt");
+  strcpy(body.info.peer_name,  "test");
+  struct PDU pdu = {.type = PDU_CONTENT_REGISTRATION, .body.content_registration = body};
+  int bytes = write(udp_fd, &pdu, calc_pdu_size(pdu)); 
+  struct PDU response_pdu;
+  recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
+  switch(response_pdu.type)
+  {
+    case PDU_ACKNOWLEDGEMENT:
+      fprintf(stdout, "Content registered.\n");
+      break;
+    case PDU_ERROR:
+      fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
+      break;
+  }
+}
+
 /**
  * Displays all available online content in the output.
  */
@@ -92,6 +113,14 @@ int list_online_content(int udp_fd, struct sockaddr_in index_server_addr, char *
 {
   // TODO: Send and receive packets for online content list
 
+  struct PDU pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_data = NULL};
+  sendto(udp_fd, &pdu, calc_pdu_size(pdu), 0, (struct sockaddr *)&index_server_addr, sizeof(index_server_addr));
+  struct PDU response_pdu;
+  recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
+
+  struct ContentListNode *nodes[contents->count];
+  content_list_get_all(contents, nodes);
+  
   return 0;
 }
 
@@ -111,8 +140,7 @@ int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
     strcpy(body.info.peer_name, nodes[i]->peer_name);
     
     struct PDU pdu = {.type = PDU_CONTENT_DEREGISTRATION, .body.content_deregistration = body};
-    sendto(udp_fd, &pdu, calc_pdu_size(pdu), 0, (struct sockaddr *)&index_server_addr, sizeof(index_server_addr));
-
+    
     struct PDU response_pdu;
     recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
     
@@ -129,6 +157,7 @@ int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
 
   return 0;
 }
+
 
 /**
  * Initiates the quit sequence, which deregisters all content and exits.
@@ -197,6 +226,7 @@ void process_user_input(int udp_fd, struct sockaddr_in index_server_addr, char *
   case PROMPT_REGISTRATION:
     // TODO: Register content
     fprintf(stdout, "Registering %s...\n", arg);
+    create_child_process(udp_fd, index_server_addr, peer_register_content, NULL);
     input_mode = PROMPT_ACTION;
     break;
 
