@@ -22,16 +22,19 @@ sem_t content_sem;
 
 int register_content(int s, struct sockaddr_in client_addr, struct PDUContentRegistrationBody body)
 {
-
   struct ContentList *list;
   char peer_name[PEER_NAME_SIZE + 1], content_name[CONTENT_NAME_SIZE + 1];
 
   strcpy(peer_name, body.info.peer_name);
   strcpy(content_name, body.info.content_name);
 
-  sem_wait(&content_sem);
   list = (struct ContentList *)table_get(content_table, content_name);
-  sem_post(&content_sem);
+
+  if (list == NULL)
+  {
+    list = content_list_create();
+    table_insert(content_table, content_name, &list, sizeof(peer_name), sizeof(list));
+  }
 
   if (content_list_find(list, peer_name, content_name) != NULL)
   {
@@ -40,26 +43,15 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
     return 0;
   }
   
-  sem_wait(&content_sem);
-  if (list == NULL)
-  {
-    list = content_list_create();
-    table_insert(content_table, content_name, &list, sizeof(peer_name), sizeof(list));
-  }
-
   content_list_push_end(list, peer_name, content_name);
-  sem_post(&content_sem);
-  sem_wait(&addr_sem);
 
   if (!table_get(addr_table, peer_name))
   {
     table_insert(addr_table, peer_name, &client_addr, sizeof(peer_name), sizeof(struct sockaddr_in));
   }
-  sem_post(&addr_sem);
 
   struct PDUAcknowledgement ack_body;
   strcpy(ack_body.peer_name, peer_name);
-
 
   struct PDU ack_pdu = {.type = PDU_ACKNOWLEDGEMENT, .body.ack = ack_body};
   sendto(s, &ack_pdu, calc_pdu_size(ack_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
