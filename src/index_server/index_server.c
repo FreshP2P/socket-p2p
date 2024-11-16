@@ -25,16 +25,16 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   struct ContentList *list;
   char peer_name[PEER_NAME_SIZE + 1], content_name[CONTENT_NAME_SIZE + 1];
 
-  strcpy(peer_name, body.info.peer_name);
-  strcpy(content_name, body.info.content_name);
+  strncpy(peer_name, body.info.peer_name, body.info.peer_name_len);
+  peer_name[body.info.peer_name_len] = 0;
 
+  strncpy(content_name, body.info.content_name, body.info.content_name_len);
+  content_name[body.info.content_name_len] = 0;
+
+  fprintf(stdout, "Registering %s from %s...\n", content_name, peer_name);
+  
   list = (struct ContentList *)table_get(content_table, content_name);
-
-  if (list == NULL)
-  {
-    list = content_list_create();
-    table_insert(content_table, content_name, &list, sizeof(peer_name), sizeof(list));
-  }
+  fprintf(stdout, "List found: %d\n", list != NULL);
 
   if (content_list_find(list, peer_name, content_name) != NULL)
   {
@@ -42,14 +42,24 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
     sendto(s, &err_pdu, calc_pdu_size(err_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
     return 0;
   }
-  
+
+  if (list == NULL)
+  {
+    fprintf(stdout, "Putting new list for key %s...\n", content_name);
+    list = content_list_create();
+    table_insert(content_table, content_name, &list, body.info.content_name_len + 1, sizeof(list));
+  }
+
+  fprintf(stdout, "Adding %s to content list...\n", content_name);
   content_list_push_end(list, peer_name, content_name);
 
   if (!table_get(addr_table, peer_name))
   {
-    table_insert(addr_table, peer_name, &client_addr, sizeof(peer_name), sizeof(struct sockaddr_in));
+    fprintf(stdout, "Adding %s to address list...\n", peer_name);
+    table_insert(addr_table, peer_name, &client_addr, body.info.peer_name_len + 1, sizeof(struct sockaddr_in));
   }
 
+  fprintf(stdout, "Sending acknowledgement...\n");
   struct PDUAcknowledgement ack_body;
   strcpy(ack_body.peer_name, peer_name);
 
@@ -64,9 +74,14 @@ int deregister_content(int s, struct sockaddr_in client_addr, struct PDUContentD
   char peer_name[PEER_NAME_SIZE + 1], content_name[CONTENT_NAME_SIZE + 1];
   int new_list_count = 0;
 
-  strcpy(peer_name, body.info.peer_name);
-  strcpy(content_name, body.info.content_name);
+  strncpy(peer_name, body.info.peer_name, body.info.peer_name_len);
+  peer_name[body.info.peer_name_len] = 0;
   
+  strncpy(content_name, body.info.content_name, body.info.content_name_len);
+  content_name[body.info.content_name_len] = 0;
+
+  fprintf(stdout, "Deregistering %s from %s...\n", content_name, peer_name);
+
   sem_wait(&content_sem);
   list = (struct ContentList *)table_get(content_table, content_name);
   content_list_remove(list, peer_name, content_name);
@@ -84,6 +99,7 @@ int deregister_content(int s, struct sockaddr_in client_addr, struct PDUContentD
     sem_post(&addr_sem);
   }
 
+  fprintf(stdout, "Sending acknowledgement...\n");
   struct PDUAcknowledgement ack_body;
   strcpy(ack_body.peer_name, peer_name);
 
@@ -134,16 +150,39 @@ int list_content(int s, struct sockaddr_in client_addr)
   char *content_names[num_contents];
   table_keys(content_table, content_names);
   
-  for (; i < content_table->count; i++)
+  for (i = 0; i < content_table->count; i++)
   {
-    struct PDUContentListingBody listing_body = {
-      .end_of_list = (i == (num_contents - 1))
+    struct PDUContentListingBody listing_body =
+    {
+      .end_of_list = (i == (num_contents - 1))      
     };
 
-    strcpy(listing_body.content_name, content_names[i]);
+    char content_name[CONTENT_NAME_SIZE + 1];
+    fprintf(stdout, "%s has %ld chars\n", content_names[i], strlen(content_names[i]));
+    strcpy(content_name, content_names[i]);
+    memcpy(listing_body.content_name, content_name, CONTENT_NAME_SIZE + 1);
+    
+    listing_body.content_name_len = strlen(content_name);
+
+    for (int j = 0; j < 11; j++)
+    {
+      fprintf(stdout, "%d-%d ", j, listing_body.content_name[j]);
+    }
+    fprintf(stdout, "\n");
+
+    fprintf(stdout, "Sending %s...\n", listing_body.content_name);
 
     struct PDU listing_pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_listing = listing_body};
-    fprintf(stdout, "Sending list\n"); 
+    sendto(s, &listing_pdu, calc_pdu_size(listing_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
+  }
+
+  if (content_table->count == 0)
+  {
+    struct PDUContentListingBody listing_body = {.end_of_list = 1, .content_name = ""};
+
+    fprintf(stdout, "Sending end of list with no content...\n");
+
+    struct PDU listing_pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_listing = listing_body};
     sendto(s, &listing_pdu, calc_pdu_size(listing_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
   }
   sem_post(&content_sem);
@@ -152,7 +191,7 @@ int list_content(int s, struct sockaddr_in client_addr)
 
 int process_peer_req(int s, struct sockaddr_in client_addr, struct PDU pdu)
 {
-  //fprintf(stdout, "Process %c PDU from %d...\n", pdu.type, client_addr.sin_addr.s_addr);
+  fprintf(stdout, "Process %c PDU from %d...\n", pdu.type, client_addr.sin_addr.s_addr);
   switch (pdu.type)
   {
   case PDU_CONTENT_REGISTRATION:
@@ -227,6 +266,7 @@ int main(int argc, char const *argv[])
   while (1)
   {
     struct PDU received_pdu;
+    memset(&received_pdu, 0, sizeof(received_pdu));
 
     if (recvfrom(s, &received_pdu, sizeof(received_pdu), 0,
                  (struct sockaddr *)&client_sin, &alen) < 0)
@@ -234,7 +274,8 @@ int main(int argc, char const *argv[])
       fprintf(stdout, "Error encountered while receiving!\n");
       continue;
     }
-    
+
+    fprintf(stdout, "Received from %d at port %d.\n", client_sin.sin_addr.s_addr, client_sin.sin_port);
     process_peer_req(s, client_sin, received_pdu);
   }
 

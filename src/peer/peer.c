@@ -63,13 +63,16 @@ struct ContentList *contents;
  */
 void create_child_process(int udp_fd, struct sockaddr_in index_server_addr, udp_child_proc_func proc_func, char *arg)
 {
-  switch (fork())
+  int id = fork();
+  switch (id)
   {
   case 0:
     exit(proc_func(udp_fd, index_server_addr, arg));
     break;
+    
+  default:
+    fprintf(stdout, "Forked proc: %d\n", id);
   }
-
 }
 
 /**
@@ -83,18 +86,28 @@ void wait_for_children()
   fprintf(stdout, "Waiting for all child processes to finish...\n");
   while ((terminated_proc = waitpid(-1, &status, 0)) > 0)
   {
-    fprintf(stdout, "Process %d terminated with code %d\n", terminated_proc, status);
+    if (status != 0)
+    {
+      fprintf(stdout, "Process %d terminated abnormally with code %d\n", terminated_proc, status);
+    }
   }
 }
 
-void peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, char *arg){
+int peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, char *arg){
   struct PDUContentRegistrationBody body;
-  strcpy(body.info.content_name, "test.txt");
-  strcpy(body.info.peer_name,  "test");
+  
+  body.info.content_name_len = strlen(arg);
+  strncpy(body.info.content_name, arg, strlen(arg));
+  body.info.content_name[body.info.content_name_len] = 0;
+
+  body.info.peer_name_len = strlen(peer_name);
+  strncpy(body.info.peer_name, peer_name, strlen(peer_name));
+  body.info.peer_name[body.info.peer_name_len] = 0;
+
   struct PDU pdu = {.type = PDU_CONTENT_REGISTRATION, .body.content_registration = body};
   write(udp_fd, &pdu, calc_pdu_size(pdu)); 
   struct PDU response_pdu;
-  recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
+  read(udp_fd, &response_pdu, sizeof(struct PDU));
   switch(response_pdu.type)
   {
     case PDU_ACKNOWLEDGEMENT:
@@ -102,8 +115,10 @@ void peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, cha
       break;
     case PDU_ERROR:
       fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
-      break;
+      return 1;
   }
+
+  return 0;
 }
 
 /**
@@ -113,19 +128,40 @@ int list_online_content(int udp_fd, struct sockaddr_in index_server_addr, char *
 {
   // TODO: Send and receive packets for online content list
 
-  struct PDU pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_data = NULL};
+  struct PDU pdu = { .type = PDU_ONLINE_CONTENT_LIST };
   write(udp_fd, &pdu, calc_pdu_size(pdu));
-  struct PDU response_pdu;
-  recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
-  switch(response_pdu.type)
+
+  int done = 0;
+
+  fprintf(stdout, "Available Content:\n");
+  do
   {
+    struct PDU response_pdu;    
+    read(udp_fd, &response_pdu, sizeof(struct PDU));
+    
+    done = response_pdu.body.content_listing.end_of_list;
+
+    switch (response_pdu.type)
+    {
     case PDU_ONLINE_CONTENT_LIST:
-      response_pdu.body.content_listing;
+      char content_name[CONTENT_NAME_SIZE + 1];
+      strncpy(content_name, response_pdu.body.content_listing.content_name, response_pdu.body.content_listing.content_name_len);
+      content_name[response_pdu.body.content_listing.content_name_len] = 0;
+
+      if (content_name[0] == 0)
+      {
+        fprintf(stdout, "No content!\n");
+        break;
+      }
+      
+      fprintf(stdout, "* %s\n", content_name);
       break;
     case PDU_ERROR:
       fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
-      break;
-  }
+      return 1;
+    }
+  } while (!done);
+  
   return 0;
 }
 
@@ -141,7 +177,10 @@ int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
   for (i = 0; i < contents->count; i++)
   {
     struct PDUContentDeregistrationBody body;
+    body.info.content_name_len = strlen(nodes[i]->content_name);
     strcpy(body.info.content_name, nodes[i]->content_name);
+
+    body.info.peer_name_len = strlen(nodes[i]->peer_name);
     strcpy(body.info.peer_name, nodes[i]->peer_name);
     
     struct PDU pdu = {.type = PDU_CONTENT_DEREGISTRATION, .body.content_deregistration = body};
@@ -231,7 +270,7 @@ void process_user_input(int udp_fd, struct sockaddr_in index_server_addr, char *
   case PROMPT_REGISTRATION:
     // TODO: Register content
     fprintf(stdout, "Registering %s...\n", arg);
-    create_child_process(udp_fd, index_server_addr, peer_register_content, NULL);
+    create_child_process(udp_fd, index_server_addr, peer_register_content, arg);
     input_mode = PROMPT_ACTION;
     break;
 

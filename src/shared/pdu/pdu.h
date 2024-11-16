@@ -19,7 +19,9 @@ typedef unsigned char pdu_type_t;
 
 typedef struct PeerContentInfo
 {
+  size_t peer_name_len;
   char peer_name[PEER_NAME_SIZE + 1];
+  size_t content_name_len;
   char content_name[CONTENT_NAME_SIZE + 1];
 } peer_content_info_t;
 
@@ -52,6 +54,7 @@ struct PDUContentDataBody
 struct PDUContentListingBody
 {
   int end_of_list; // 0: false, 1: true
+  size_t content_name_len;
   char content_name[CONTENT_NAME_SIZE + 1];
 };
 
@@ -98,6 +101,7 @@ struct PDU
   // before assuming the field that represents the body is accessed.
   // Some examples are shown below.
   union PDUBody body;
+  char term_bit;
 };
 
 size_t calc_pdu_size(struct PDU pdu);

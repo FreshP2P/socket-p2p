@@ -20,6 +20,7 @@ struct ContentListNode *content_list_find(struct ContentList *list, const char *
   }
   
   struct ContentListNode *curr = list->start;
+  fprintf(stdout, "List starts with node at %ld\n", (__intptr_t)curr);
   while (curr != NULL)
   {
     fprintf(stdout, "%s\n", curr->content_name);
@@ -41,21 +42,29 @@ void content_list_push_start(struct ContentList *list, const char *peer_name, co
   }
 
   struct ContentListNode *new_node = malloc(sizeof(struct ContentListNode));
+  memset(new_node->peer_name, 0, sizeof(new_node->peer_name));
   strcpy(new_node->peer_name, peer_name);
+  memset(new_node->content_name, 0, sizeof(new_node->content_name));
   strcpy(new_node->content_name, content_name);
+
+  fprintf(stdout, "New node peer: %s\n", new_node->peer_name);
+  fprintf(stdout, "New node content: %s\n", new_node->content_name);
 
   if (list->start == NULL)
   {
+    fprintf(stdout, "Set end\n");
     list->end = new_node;
   }
   else
   {
+    fprintf(stdout, "Set prev\n");
     list->start->prev = new_node;
   }
-
+  
   new_node->next = list->start;
   list->start = new_node;
 
+  fprintf(stdout, "List now starts with node at %ld\n", (__intptr_t)list->start);
   list->count++;
 }
 
@@ -67,21 +76,29 @@ void content_list_push_end(struct ContentList *list, const char *peer_name, cons
   }
   
   struct ContentListNode *new_node = malloc(sizeof(struct ContentListNode));
+  memset(new_node->peer_name, 0, sizeof(new_node->peer_name));
   strcpy(new_node->peer_name, peer_name);
+  memset(new_node->content_name, 0, sizeof(new_node->content_name));
   strcpy(new_node->content_name, content_name);
-  
+
+  fprintf(stdout, "New node peer: %s\n", new_node->peer_name);
+  fprintf(stdout, "New node content: %s\n", new_node->content_name);
+
   if (list->end == NULL)
   {
+    fprintf(stdout, "Set start\n");
     list->start = new_node;
   }
   else
   {
+    fprintf(stdout, "Set next\n");
     list->end->next = new_node;
   }
 
   new_node->prev = list->end;
   list->end = new_node;
 
+  fprintf(stdout, "List now starts with node at %ld\n", (__intptr_t)list->start);
   list->count++;
 }
 

@@ -59,8 +59,11 @@ void table_insert(hash_table* table, char const *key, void const *value, size_t 
   // Allocate the new data item in memory.
   struct DataItem *new_item = malloc(sizeof(struct DataItem));
   new_item -> key = malloc(key_len);
-  memcpy(new_item->key, key, key_len);
-  new_item -> value = malloc(value_size);
+  memset(new_item->key, 0, key_len);
+  strcpy(new_item->key, key);
+  
+  new_item->value = malloc(value_size);
+  memset(new_item->value, 0, value_size);
   memcpy(new_item->value, value, value_size);
   new_item->next = NULL;
 
@@ -72,6 +75,7 @@ void table_insert(hash_table* table, char const *key, void const *value, size_t 
   {
     table->items[index] = new_item;
   }
+  
   table->count++;
 }
 
