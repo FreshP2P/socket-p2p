@@ -21,6 +21,7 @@ typedef struct PeerContentInfo
 {
   char peer_name[PEER_NAME_SIZE + 1];
   char content_name[CONTENT_NAME_SIZE + 1];
+  struct sockaddr_in *peer_addr;
 } peer_content_info_t;
 
 struct PDUContentRegistrationBody
@@ -41,6 +42,7 @@ struct PDUContentDownloadRequestBody
 struct PDUContentDeregistrationBody
 {
   peer_content_info_t info;
+  struct sockaddr_in address;
 };
 
 struct PDUContentDataBody
@@ -89,6 +91,7 @@ union PDUBody
   struct PDUErrorBody error;
 };
 
+#pragma pack(1)
 struct PDU
 {
   pdu_type_t type;
@@ -99,6 +102,7 @@ struct PDU
   // Some examples are shown below.
   union PDUBody body;
 };
+#pragma pack()
 
 size_t calc_pdu_size(struct PDU pdu);
 

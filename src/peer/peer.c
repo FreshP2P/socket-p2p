@@ -17,14 +17,14 @@
 #include <unistd.h> 
 #include <errno.h>
 
-#define PEER_NAME_MAX_LENGTH 10
-#define INPUT_MAX_LENGTH 10
-
 // Enum representing what we are prompting. This is used to track follow up prompts
 typedef enum PromptMode
 {
   // Prompting for an action the user wants to perform
   PROMPT_ACTION,
+
+  // Prompting for the content to be listed
+  PROMPT_LIST,
   
   // Prompting for the content to register
   PROMPT_REGISTRATION,
@@ -52,15 +52,19 @@ typedef int (*udp_child_proc_func)(int udp_fd, struct sockaddr_in index_server_a
 // Peer name
 char peer_name[PEER_NAME_MAX_LENGTH + 1];
 
+// Content name
+char content_name[CONTENT_NAME_SIZE + 1];
+
+// Peer address
+struct sockaddr_in peer_addr;
+
 // Current prompt
 prompt_mode input_mode = PROMPT_ACTION;
 
 // Registered contents
 struct ContentList *contents;
 
-/**
- * Creates a child process that calls the specified function.
- */
+
 void create_child_process(int udp_fd, struct sockaddr_in index_server_addr, udp_child_proc_func proc_func, char *arg)
 {
   switch (fork())
@@ -72,9 +76,6 @@ void create_child_process(int udp_fd, struct sockaddr_in index_server_addr, udp_
 
 }
 
-/**
- * Waits for all child processes to finish.
- */
 void wait_for_children()
 {
   int terminated_proc;
@@ -87,10 +88,14 @@ void wait_for_children()
   }
 }
 
+
 void peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, char *arg){
+  
   struct PDUContentRegistrationBody body;
-  strcpy(body.info.content_name, "test.txt");
-  strcpy(body.info.peer_name,  "test");
+  strcpy(body.info.content_name, content_name);
+  strcpy(body.info.peer_name, peer_name);
+  body.address = peer_addr;
+
   struct PDU pdu = {.type = PDU_CONTENT_REGISTRATION, .body.content_registration = body};
   write(udp_fd, &pdu, calc_pdu_size(pdu)); 
   struct PDU response_pdu;
@@ -99,6 +104,27 @@ void peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, cha
   {
     case PDU_ACKNOWLEDGEMENT:
       fprintf(stdout, "Content registered.\n");
+      break;
+    case PDU_ERROR:
+      fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
+      break;
+  }
+}
+
+void peer_deregister_content(int udp_fd, struct sockaddr_in index_server_addr){
+
+  struct PDUContentDeregistrationBody body;
+  strcpy(body.info.peer_name, peer_name);
+  strcpy(body.info.content_name, content_name);
+
+  struct PDU pdu = {.type = PDU_CONTENT_DEREGISTRATION, .body.content_deregistration = body};
+  write(udp_fd, &pdu, calc_pdu_size(pdu)); 
+  struct PDU response_pdu;
+  recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
+  switch(response_pdu.type)
+  {
+    case PDU_ACKNOWLEDGEMENT:
+      fprintf(stdout, "Content deregistered.\n");
       break;
     case PDU_ERROR:
       fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
@@ -116,11 +142,13 @@ int list_online_content(int udp_fd, struct sockaddr_in index_server_addr, char *
   struct PDU pdu = {.type = PDU_ONLINE_CONTENT_LIST, .body.content_data = NULL};
   write(udp_fd, &pdu, calc_pdu_size(pdu));
   struct PDU response_pdu;
-  recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
+  for(int i = 0; i < ARRAY_SIZE; i++){
+    recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
+    fprintf(stdout, "%s\n", response_pdu.body.content_listing.content_name);
+  }
   switch(response_pdu.type)
   {
     case PDU_ONLINE_CONTENT_LIST:
-      response_pdu.body.content_listing;
       break;
     case PDU_ERROR:
       fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
@@ -134,33 +162,64 @@ int list_online_content(int udp_fd, struct sockaddr_in index_server_addr, char *
  */
 int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
 {
-  struct ContentListNode *nodes[contents->count];
-  content_list_get_all(contents, nodes);
 
-  int i = 0;
-  for (i = 0; i < contents->count; i++)
-  {
-    struct PDUContentDeregistrationBody body;
-    strcpy(body.info.content_name, nodes[i]->content_name);
-    strcpy(body.info.peer_name, nodes[i]->peer_name);
-    
-    struct PDU pdu = {.type = PDU_CONTENT_DEREGISTRATION, .body.content_deregistration = body};
-    
-    struct PDU response_pdu;
-    recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
-    
-    switch(response_pdu.type)
-    {
-    case PDU_ACKNOWLEDGEMENT:
-      fprintf(stdout, "%s deregistered.\n", nodes[i]->content_name);
-      break;
-    case PDU_ERROR:
-      fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
-      break;
-    }
-  }
+  struct PDUContentDeregistrationBody body;
+  strcpy(body.info.content_name, "");
+  strcpy(body.info.peer_name, "");
+  body.info.peer_addr = &peer_addr;
+
+  
+  struct PDU pdu = {.type = PDU_CONTENT_DEREGISTRATION, .body.content_deregistration = body};
+  write(udp_fd, &pdu, calc_pdu_size(pdu));
 
   return 0;
+
+  
+  //struct PDU response_pdu;
+  //recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
+
+  
+  //switch(response_pdu.type)
+  //{
+  //case PDU_ACKNOWLEDGEMENT:
+  //  fprintf(stdout, "%s deregistered.\n", content_name);
+  //  break;
+  //case PDU_ERROR:
+  //  fprintf(stderr, "ERROR: %s\n", response_pdu.body.error.message);
+  //  break;
+  //}
+  
+}
+
+
+int peer_download_content(int udp_fd, struct sockaddr_in index_server_addr, char *arg){
+
+  //fprintf(stdout, "Download: %s\n", arg);
+
+  struct PDUContentDownloadRequestBody body;
+  strcpy(body.info.content_name, arg);
+  strcpy(body.info.peer_name, peer_name);
+  body.info.peer_addr = &peer_addr;
+
+
+  struct PDU pdu = {.type = PDU_CONTENT_AND_SERVER_SEARCH, .body.content_download_req = body};
+  write(udp_fd, &pdu, calc_pdu_size(pdu)); 
+  struct PDU response_pdu;
+  recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
+  
+  if(response_pdu.type == PDU_ERROR){
+      fprintf(stdout, "ERROR: %s\n", response_pdu.body.error.message);
+      return 0;
+  }
+
+  fprintf(stdout, "%d\n", response_pdu.body.content_download_req.info.peer_addr);
+  
+
+  
+
+
+  return 0;
+
 }
 
 
@@ -169,17 +228,7 @@ int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
  */
 void quit(int udp_fd, struct sockaddr_in index_server_addr)
 {
-  switch (fork())
-  {
-  case 0:
-    exit(terminate_all_content(udp_fd, index_server_addr));
-    break;
-
-  default:
-    wait_for_children();
-    exit(0);
-    break;
-  }
+  exit(terminate_all_content(udp_fd, index_server_addr));
 }
 
 /**
@@ -190,9 +239,8 @@ void process_action(int udp_fd, struct sockaddr_in index_server_addr, user_actio
   switch (action)
   {
   case LIST_CONTENT:
+    input_mode = PROMPT_LIST;
     fprintf(stdout, "Listing available content...\n");
-    create_child_process(udp_fd, index_server_addr, list_online_content, NULL);
-    input_mode = PROMPT_ACTION;
     break;
   case REGISTER:
     input_mode = PROMPT_REGISTRATION;
@@ -228,22 +276,28 @@ void process_user_input(int udp_fd, struct sockaddr_in index_server_addr, char *
     process_action(udp_fd, index_server_addr, (user_action)toupper(arg[0]));
     break;
 
+  case PROMPT_LIST:
+    fprintf(stdout, "Listing available content...\n");
+    create_child_process(udp_fd, index_server_addr, list_online_content, NULL);
+    input_mode = PROMPT_ACTION;
+    break;
+  
   case PROMPT_REGISTRATION:
-    // TODO: Register content
     fprintf(stdout, "Registering %s...\n", arg);
-    create_child_process(udp_fd, index_server_addr, peer_register_content, NULL);
+     create_child_process(udp_fd, index_server_addr, peer_register_content, NULL);
     input_mode = PROMPT_ACTION;
     break;
 
   case PROMPT_DEREGISTRATION:
-    // TODO: Deregister content
     fprintf(stdout, "Deregistering %s...\n", arg);
+    create_child_process(udp_fd, index_server_addr, peer_deregister_content, NULL);
     input_mode = PROMPT_ACTION;
     break;
     
   case PROMPT_DOWNLOAD:
     // TODO: Download content with TCP connection
     fprintf(stdout, "Downloading %s...\n", arg);
+    create_child_process(udp_fd, index_server_addr, peer_download_content, arg);
     input_mode = PROMPT_ACTION;
     break;
   }
@@ -269,6 +323,7 @@ void prompt_peer_name()
   fprintf(stdout, "Peer name: %s\n", peer_name);
 }
 
+
 int main(int argc, char const *argv[])
 {
   /* code */
@@ -282,6 +337,7 @@ int main(int argc, char const *argv[])
   struct hostent *index_host_ent; /* info of index server */
   struct sockaddr_in index_addr;  /* index server address */
   int index_udp_socket_fd;        /* index server UDP socket */
+  peer_addr = reg_addr;
 
   switch (argc)
   {
@@ -343,6 +399,8 @@ int main(int argc, char const *argv[])
 
   print_prompt();
 
+  fprintf(stdout, "Peer address: %d\n", reg_addr.sin_addr.s_addr);
+
   while (1)
   {
     select(FD_SETSIZE, &rfds, NULL, NULL, NULL);
@@ -353,11 +411,15 @@ int main(int argc, char const *argv[])
       int read_len = read(STDIN_FILENO, read_in, INPUT_MAX_LENGTH);
       read_in[read_len - 1] = 0;
 
+      strcpy(content_name, read_in);
+
       process_user_input(index_udp_socket_fd, index_addr, read_in);
     }
 
     if (FD_ISSET(tcp_socket_fd, &rfds))
     {
+
+      fprintf(stdout, "In TCP\n");
 
     }
   }
