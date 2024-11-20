@@ -94,7 +94,9 @@ void peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, cha
   struct PDUContentRegistrationBody body;
   strcpy(body.info.content_name, content_name);
   strcpy(body.info.peer_name, peer_name);
-  body.address = peer_addr;
+  body.info.peer_addr = peer_addr;
+
+  fprintf(stdout, "From register: %s\n", peer_name);
 
   struct PDU pdu = {.type = PDU_CONTENT_REGISTRATION, .body.content_registration = body};
   write(udp_fd, &pdu, calc_pdu_size(pdu)); 
@@ -112,6 +114,8 @@ void peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, cha
 }
 
 void peer_deregister_content(int udp_fd, struct sockaddr_in index_server_addr){
+
+  fprintf(stdout, "%s\n", peer_name);
 
   struct PDUContentDeregistrationBody body;
   strcpy(body.info.peer_name, peer_name);
@@ -144,7 +148,7 @@ int list_online_content(int udp_fd, struct sockaddr_in index_server_addr, char *
   struct PDU response_pdu;
   for(int i = 0; i < ARRAY_SIZE; i++){
     recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
-    fprintf(stdout, "%s\n", response_pdu.body.content_listing.content_name);
+    fprintf(stdout, "Peer: %s Content: %s\n", response_pdu.body.content_listing.peer_name, response_pdu.body.content_listing.content_name);
   }
   switch(response_pdu.type)
   {
@@ -165,9 +169,7 @@ int terminate_all_content(int udp_fd, struct sockaddr_in index_server_addr)
 
   struct PDUContentDeregistrationBody body;
   strcpy(body.info.content_name, "");
-  strcpy(body.info.peer_name, "");
-  body.info.peer_addr = &peer_addr;
-
+  strcpy(body.info.peer_name, peer_name);
   
   struct PDU pdu = {.type = PDU_CONTENT_DEREGISTRATION, .body.content_deregistration = body};
   write(udp_fd, &pdu, calc_pdu_size(pdu));
@@ -199,24 +201,68 @@ int peer_download_content(int udp_fd, struct sockaddr_in index_server_addr, char
   struct PDUContentDownloadRequestBody body;
   strcpy(body.info.content_name, arg);
   strcpy(body.info.peer_name, peer_name);
-  body.info.peer_addr = &peer_addr;
+  body.info.peer_addr = peer_addr;
 
 
   struct PDU pdu = {.type = PDU_CONTENT_AND_SERVER_SEARCH, .body.content_download_req = body};
   write(udp_fd, &pdu, calc_pdu_size(pdu)); 
-  struct PDU response_pdu;
-  recvfrom(udp_fd, &response_pdu, sizeof(struct PDU), 0, NULL, NULL);
+  struct PDU search_response_pdu;
+  recvfrom(udp_fd, &search_response_pdu, sizeof(struct PDU), 0, NULL, NULL);
   
-  if(response_pdu.type == PDU_ERROR){
-      fprintf(stdout, "ERROR: %s\n", response_pdu.body.error.message);
+  if(search_response_pdu.type == PDU_ERROR){
+      fprintf(stdout, "ERROR: %s\n", search_response_pdu.body.error.message);
       return 0;
   }
 
-  fprintf(stdout, "%d\n", response_pdu.body.content_download_req.info.peer_addr);
-  
+  int sd;
+  struct sockaddr_in server = search_response_pdu.body.content_download_req.info.peer_addr;
 
-  
+  server.sin_family = AF_INET;
 
+  /* Create a stream socket	*/	
+	if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		fprintf(stderr, "Can't create a socket\n");
+		exit(1);
+	}
+
+  fprintf(stdout, "Connecting to content server %d:%d\n", server.sin_addr.s_addr, server.sin_port);
+
+  /* Connecting to the server */
+  if (connect(sd, (struct sockaddr *)&server, sizeof(server)) == -1){
+	  fprintf(stderr, "Can't connect: %s\n", strerror(errno));
+	  exit(1);
+	}
+
+  struct PDU req_pdu;
+  req_pdu.type = PDU_CONTENT_DOWNLOAD_REQUEST;
+  req_pdu.body.content_download_req = search_response_pdu.body.content_download_req;
+  write(sd, &req_pdu, calc_pdu_size(req_pdu));
+
+  struct PDU data_pdu;
+  FILE *fptr;
+  char full_path[257];
+  sprintf(full_path, "/Users/sameerqureshi/Desktop/COE768/P2P/socket-p2p/%s_files/%s", peer_name, body.info.content_name);
+	fptr = fopen(full_path, "a");
+	int total_file_bytes = 0;
+  int i;
+	while ((i = read(sd, &data_pdu, sizeof(struct PDU))) > 0){
+		fprintf(stdout, "Read %d bytes\n", i);
+		if(data_pdu.type == PDU_ERROR){
+			fprintf(stderr, data_pdu.body.error.message);
+			break;
+		}
+		total_file_bytes += i - 1;
+		fprintf(stdout, "Total file bytes: %d\n", total_file_bytes);
+		fwrite(data_pdu.body.content_data.data, sizeof(char), data_pdu.body.content_data.data_len, fptr);
+	}
+
+
+  peer_register_content(udp_fd, index_server_addr, body.info.content_name);
+	
+	fprintf(stdout, "Done\n");
+
+	fclose(fptr);	
+	close(sd);
 
   return 0;
 
@@ -323,6 +369,77 @@ void prompt_peer_name()
   fprintf(stdout, "Peer name: %s\n", peer_name);
 }
 
+int file_download(int sd, int udp_fd, struct sockaddr_in index_server_addr)
+{
+	char file_name[CONTENT_NAME_SIZE];
+	char full_path[257];
+	char buf[DATA_BODY_SIZE]; // buffer with the 0th char as the error flag
+	char sync_buf[2];
+	int n, file_name_bytes_read, bytes_read, total_read, read_failed;
+	FILE *file;
+
+	// get the file client wants
+	struct PDU req_pdu;
+  read(sd, &req_pdu, sizeof(struct PDU));
+
+	sprintf(full_path, "../../../%s_files/%s", req_pdu.body.content_download_req.info.peer_name, req_pdu.body.content_download_req.info.content_name);
+
+	if ((file = fopen(full_path, "r")) == NULL)
+	{
+		// Can't find file, send an error
+    struct PDU err_pdu;
+    err_pdu.type = PDU_ERROR;
+
+		sprintf(err_pdu.body.error.message, "Can\'t open \'%s\'! Does the file exist? No one knows!\n", file_name);
+		fprintf(stderr, err_pdu.body.error.message);
+		write(sd, &err_pdu, calc_pdu_size(err_pdu));
+	}
+	else
+	{
+		// Send file in chunks of BUFLEN bytes
+    struct PDU data_pdu;
+    data_pdu.type = PDU_CONTENT_DATA;
+
+		read_failed = 0;
+		total_read = 0;
+
+		do
+		{
+			// read the chunk
+			bytes_read = fread(data_pdu.body.content_data.data, sizeof(char), DATA_BODY_SIZE, file);
+      data_pdu.body.content_data.data_len = bytes_read;
+			total_read += bytes_read;
+			fprintf(stdout, "Read: %d bytes; Total: %d bytes\n", bytes_read, total_read);
+
+			// send the chunk, write an error message in case this encounters a problem
+			if (bytes_read == 0) {
+				break;
+			}
+			fprintf(stdout, "Sending %d bytes\n", bytes_read + 1);
+			if (write(sd, &data_pdu, calc_pdu_size(data_pdu)) == -1)
+			{
+				read_failed = 1;
+				fprintf(stderr, "File send encountered a problem. Is the connection still here? Error: %s\n", strerror(errno));
+				break;
+			}
+		} while (bytes_read > 0); // keep going while there is more to read
+
+		if (read_failed)
+			fprintf(stdout, "File transfer failed\n");
+		else
+			fprintf(stdout, "File transfer complete\n");
+	}
+
+	if (file != NULL)
+	{
+		fclose(file);
+	}
+
+	close(sd);
+
+	return (0);
+}
+
 
 int main(int argc, char const *argv[])
 {
@@ -337,7 +454,6 @@ int main(int argc, char const *argv[])
   struct hostent *index_host_ent; /* info of index server */
   struct sockaddr_in index_addr;  /* index server address */
   int index_udp_socket_fd;        /* index server UDP socket */
-  peer_addr = reg_addr;
 
   switch (argc)
   {
@@ -378,10 +494,9 @@ int main(int argc, char const *argv[])
   getsockname(tcp_socket_fd, (struct sockaddr *)&reg_addr, &reg_alen);
   listen(tcp_socket_fd, 5);
 
+  peer_addr = reg_addr;
+
   FD_ZERO(&afds);
-  FD_SET(tcp_socket_fd, &afds); /* Listening on a TCP socket */
-  FD_SET(STDIN_FILENO, &afds);  /* Listening on stdin */
-  memcpy(&rfds, &afds, sizeof(rfds));
 
   /* Create and connect UDP socket */
   index_udp_socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -399,11 +514,32 @@ int main(int argc, char const *argv[])
 
   print_prompt();
 
-  fprintf(stdout, "Peer address: %d\n", reg_addr.sin_addr.s_addr);
+  fprintf(stdout, "Peer address: %d:%d\n", peer_addr.sin_addr.s_addr, peer_addr.sin_port);
 
   while (1)
   {
+    FD_SET(tcp_socket_fd, &afds); /* Listening on a TCP socket */
+    FD_SET(STDIN_FILENO, &afds);  /* Listening on stdin */
+    memcpy(&rfds, &afds, sizeof(rfds));
+
     select(FD_SETSIZE, &rfds, NULL, NULL, NULL);
+
+    if (FD_ISSET(tcp_socket_fd, &rfds))
+    {
+      struct sockaddr_in client;
+      int client_len;
+      int new_fd = accept(tcp_socket_fd, (struct sockaddr *)&client, &client_len);
+      switch (fork())
+      {
+      case 0: /* child */
+        exit(file_download(new_fd, index_udp_socket_fd, index_addr));
+      default: /* parent */
+        (void)close(new_fd);
+        break;
+      case -1:
+        fprintf(stderr, "fork: error\n");
+      }
+    }
 
     if (FD_ISSET(STDIN_FILENO, &rfds))
     {
@@ -414,13 +550,6 @@ int main(int argc, char const *argv[])
       strcpy(content_name, read_in);
 
       process_user_input(index_udp_socket_fd, index_addr, read_in);
-    }
-
-    if (FD_ISSET(tcp_socket_fd, &rfds))
-    {
-
-      fprintf(stdout, "In TCP\n");
-
     }
   }
 

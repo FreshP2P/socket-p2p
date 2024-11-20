@@ -21,28 +21,22 @@ typedef struct PeerContentInfo
 {
   char peer_name[PEER_NAME_SIZE + 1];
   char content_name[CONTENT_NAME_SIZE + 1];
-  struct sockaddr_in *peer_addr;
+  struct sockaddr_in peer_addr;
 } peer_content_info_t;
 
 struct PDUContentRegistrationBody
 {
   peer_content_info_t info;
-  struct sockaddr_in address;
 };
 
 struct PDUContentDownloadRequestBody
 {
   peer_content_info_t info;
-  
-  // address as response from the index server
-  // clients can supply this as empty
-  struct sockaddr_in address;
 };
 
 struct PDUContentDeregistrationBody
 {
   peer_content_info_t info;
-  struct sockaddr_in address;
 };
 
 struct PDUContentDataBody
@@ -54,6 +48,7 @@ struct PDUContentDataBody
 struct PDUContentListingBody
 {
   int end_of_list; // 0: false, 1: true
+  char peer_name[PEER_NAME_SIZE + 1];
   char content_name[CONTENT_NAME_SIZE + 1];
 };
 

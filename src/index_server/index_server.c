@@ -32,13 +32,9 @@ int register_content(int s, struct sockaddr_in client_addr, struct PDUContentReg
   strcpy(node->content_name, body.info.content_name);
   node->peer_addr = body.info.peer_addr; 
 
-  fprintf(stdout, "Client: %d\n", client_addr.sin_addr.s_addr);
-
-  //fprintf(stdout, "Body: %d\n",  body.info.peer_addr->sin_addr.s_addr);
-  //fprintf(stdout, "Node: %d\n",  node->peer_addr->sin_addr.s_addr);
-
   for(int i = 0; i < ARRAY_SIZE; i++){
-    if(strcmp((*content_ptr)[i] -> content_name, body.info.content_name) == 0){
+    if(strcmp((*content_ptr)[i] -> content_name, body.info.content_name) == 0 && 
+    strcmp((*content_ptr)[i] -> peer_name, body.info.peer_name) == 0){
       struct PDU err_pdu = {.type = PDU_ERROR, .body.error = {.message = "Name and content already taken."}};
       sendto(s, &err_pdu, calc_pdu_size(err_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
       return 0;
@@ -67,17 +63,16 @@ int deregister_content(int s, struct sockaddr_in client_addr, struct PDUContentD
   struct PDUAcknowledgement ack_body;
   strcpy(ack_body.peer_name, body.info.peer_name);
 
-  if(strcmp(body.info.content_name, "") == 0 && strcmp(body.info.peer_name, "") == 0){
+
+  if(strcmp(body.info.content_name, "") == 0){
     for(int i = 0; i < ARRAY_SIZE; i++){
-      if((*content_ptr)[i] -> peer_addr == body.info.peer_addr){
+      if(strcmp((*content_ptr)[i] -> peer_name, body.info.peer_name) == 0){
+        fprintf(stdout, "Insde loop\n");
         struct ContentListNode *node = malloc(sizeof(struct ContentListNode));
         node->served_count = 0;
         strcpy(node->peer_name, "");
         strcpy(node->content_name, "");
         (*content_ptr)[i] = node;
-
-        //struct PDU ack_pdu = {.type = PDU_ACKNOWLEDGEMENT, .body.ack = ack_body};
-        //sendto(s, &ack_pdu, calc_pdu_size(ack_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
       }
     }
   }
@@ -122,27 +117,37 @@ int search_content(int s, struct sockaddr_in client_addr, struct PDUContentDownl
     }
   }
 
+  int found;
+  found = 0;
+
 
   for(int i = 0; i < ARRAY_SIZE; i++){
     if(strcmp((*content_ptr)[i] -> content_name, body.info.content_name) == 0 &&
       strcmp((*content_ptr)[i] -> peer_name, body.info.peer_name) != 0){
         if((*content_ptr)[i] -> served_count <= count){
           strcpy(search_body.info.content_name, (*content_ptr)[i]->content_name);
-          strcpy(search_body.info.peer_name, (*content_ptr)[i]-> peer_name);
-          search_body.info.peer_addr =  (*content_ptr)[i]-> peer_addr;
+          strcpy(search_body.info.peer_name, (*content_ptr)[i] -> peer_name);
+          memcpy(&search_body.info.peer_addr, &(*content_ptr)[i] -> peer_addr, sizeof(struct sockaddr_in));
           search_pdu.body.content_download_req = search_body;
           count = (*content_ptr)[i] -> served_count;
+          found = i;
         }
     }
   }
 
   // Update the count for selected node
 
+  (*content_ptr)[found] -> served_count = (*content_ptr)[found] -> served_count + 1;
+
+
   if(strcmp(search_body.info.content_name, "") == 0){
     struct PDU err_pdu = {.type = PDU_ERROR, .body.error = {.message = "Content not found."}};
     sendto(s, &err_pdu, calc_pdu_size(err_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
     return 0;
   }
+
+  fprintf(stdout, "Serving Peer: %s\n", search_body.info.peer_name);
+
   sendto(s, &search_pdu, calc_pdu_size(search_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
   return 0;
 }
@@ -156,6 +161,7 @@ int list_content(int s, struct sockaddr_in client_addr)
 
       listing_pdu.type = PDU_ONLINE_CONTENT_LIST;
       strcpy(listing_body.content_name, (*content_ptr)[i]->content_name);
+      strcpy(listing_body.peer_name, (*content_ptr)[i]->peer_name);
       listing_pdu.body.content_listing = listing_body;
     
       sendto(s, &listing_pdu, calc_pdu_size(listing_pdu), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
@@ -175,9 +181,7 @@ int process_peer_req(int s, struct sockaddr_in client_addr, struct PDU pdu)
     return list_content(s, client_addr);
   case PDU_CONTENT_AND_SERVER_SEARCH:
     return search_content(s, client_addr, pdu.body.content_download_req);
-
   default:
-    //fprintf(stdout, "No actions needed for PDU type %c.\n", pdu.type);
     break;
   }
   return 0;

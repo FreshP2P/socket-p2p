@@ -2,6 +2,7 @@
 #define _P2P_CONTENT_LIST
 
 #include "../config/constants.h"
+#include <netinet/in.h>
 
 struct ContentList
 {
@@ -19,7 +20,7 @@ struct ContentListNode
   int served_count;
   char peer_name[PEER_NAME_SIZE + 1];
   char content_name[CONTENT_NAME_SIZE + 1];
-  struct sockaddr_in *peer_addr;
+  struct sockaddr_in peer_addr;
   struct ContentListNode *prev;
   struct ContentListNode *next;
 };
