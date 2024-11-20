@@ -514,8 +514,6 @@ int main(int argc, char const *argv[])
 
   print_prompt();
 
-  fprintf(stdout, "Peer address: %d:%d\n", peer_addr.sin_addr.s_addr, peer_addr.sin_port);
-
   while (1)
   {
     FD_SET(tcp_socket_fd, &afds); /* Listening on a TCP socket */
