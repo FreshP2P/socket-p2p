@@ -96,8 +96,6 @@ void peer_register_content(int udp_fd, struct sockaddr_in index_server_addr, cha
   strcpy(body.info.peer_name, peer_name);
   body.info.peer_addr = peer_addr;
 
-  fprintf(stdout, "From register: %s\n", peer_name);
-
   struct PDU pdu = {.type = PDU_CONTENT_REGISTRATION, .body.content_registration = body};
   write(udp_fd, &pdu, calc_pdu_size(pdu)); 
   struct PDU response_pdu;
